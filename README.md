@@ -143,7 +143,7 @@ docker-compose logs -f
 
 ## File Structure
 
-\`\`\`
+```
 scada-testbed/
 ├── docker-compose.yml              # Container orchestration
 ├── docker/
@@ -171,7 +171,7 @@ scada-testbed/
 │   ├── test-connection.sh         # Connection tests
 │   └── make-executable.sh         # Make scripts executable
 └── README.md                      # This file
-\`\`\`
+```
 
 ## Electrical Parameters
 
