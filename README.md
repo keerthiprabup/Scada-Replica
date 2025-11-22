@@ -40,7 +40,7 @@ A comprehensive Docker-based SCADA testbed replica simulating a power generation
 
 ### 1. Clone/Extract Files
 Extract all files maintaining the directory structure:
-\`\`\`
+```
 scada-testbed/
 ├── docker-compose.yml
 ├── docker/
@@ -49,18 +49,18 @@ scada-testbed/
 │   └── monitoring/
 ├── scripts/
 └── README.md
-\`\`\`
+```
 
 ### 2. Make Scripts Executable
-\`\`\`bash
+```bash
 cd scada-testbed
 chmod +x scripts/*.sh
-\`\`\`
+```
 
 ### 3. Start the System
-\`\`\`bash
+```bash
 ./scripts/startup.sh
-\`\`\`
+```
 
 The system will:
 - Build all Docker images
@@ -69,19 +69,19 @@ The system will:
 - Begin measuring and logging data
 
 ### 4. Verify Installation
-\`\`\`bash
+```bash
 ./scripts/test-connection.sh
-\`\`\`
+```
 
 ## API Usage
 
 ### Get Current System Status
-\`\`\`bash
+```bash
 curl http://localhost:8080/api/status | jq
-\`\`\`
+```
 
 Response:
-\`\`\`json
+```json
 {
   "master_id": 1,
   "timestamp": "2024-01-15T10:30:45.123456",
@@ -100,46 +100,46 @@ Response:
     }
   }
 }
-\`\`\`
+```
 
 ### Get Specific Outstation Data
-\`\`\`bash
+```bash
 curl http://localhost:8080/api/outstation/1 | jq
-\`\`\`
+```
 
 ### Get Measurement History
-\`\`\`bash
+```bash
 curl "http://localhost:8080/api/measurements/1?limit=50&offset=0" | jq
-\`\`\`
+```
 
 ### Get Monitoring Statistics
-\`\`\`bash
+```bash
 curl http://localhost:8081/api/stats | jq
-\`\`\`
+```
 
 ### Get Recent Logs
-\`\`\`bash
+```bash
 curl "http://localhost:8081/api/logs?limit=20" | jq
-\`\`\`
+```
 
 ## Monitoring Logs
 
 ### View All Container Logs
-\`\`\`bash
+```bash
 ./scripts/logs.sh
-\`\`\`
+```
 
 ### View Specific Service Logs
-\`\`\`bash
+```bash
 ./scripts/logs.sh rtu-substation-1
 ./scripts/logs.sh scada-master-server
 ./scripts/logs.sh scada-data-logger
-\`\`\`
+```
 
 ### Real-time Docker Logs
-\`\`\`bash
+```bash
 docker-compose logs -f
-\`\`\`
+```
 
 ## File Structure
 
@@ -208,36 +208,36 @@ Based on IEEE Std 666-2007 and ANSI C84.1-2020 standards for power generation pl
 All measurements are logged in JSON format:
 
 **RTU Measurements**:
-\`\`\`
+```
 logs/rtu_1_measurements.json
 logs/rtu_2_measurements.json
-\`\`\`
+```
 
 **System Status**:
-\`\`\`
+```
 logs/scada_status.jsonl
-\`\`\`
+```
 
 Each line is a complete JSON object with timestamp, measurements, and status.
 
 ## Troubleshooting
 
 ### Containers Won't Start
-\`\`\`bash
+```bash
 docker-compose logs
 docker system prune
 ./scripts/clean.sh
 ./scripts/startup.sh
-\`\`\`
+```
 
 ### Network Connectivity Issues
-\`\`\`bash
+```bash
 ./scripts/network-setup.sh
 docker-compose restart
-\`\`\`
+```
 
 ### API Not Responding
-\`\`\`bash
+```bash
 # Check if services are running
 docker-compose ps
 
@@ -247,34 +247,34 @@ docker-compose ps
 # Test connectivity
 curl http://localhost:8080/api/health
 curl http://localhost:8081/api/health
-\`\`\`
+```
 
 ### High Memory Usage
-\`\`\`bash
+```bash
 # Clean up Docker system
 docker system prune
 docker image prune
 
 # Reduce log retention
 rm -rf logs/*
-\`\`\`
+```
 
 ## Performance Tuning
 
 ### Increase Polling Frequency
 Edit `docker-compose.yml`:
-\`\`\`yaml
+```yaml
 environment:
   - POLL_INTERVAL=2  # 2 seconds instead of 5
-\`\`\`
+```
 
 ### Reduce Memory Footprint
-\`\`\`bash
+```bash
 # Limit measurement history
 # Edit docker/scada-server/scada_master.py:
 # Change: if len(self.measurement_data[rtu_id]) > 1000:
 # To: if len(self.measurement_data[rtu_id]) > 100:
-\`\`\`
+```
 
 ## Extensions & Customization
 
@@ -326,6 +326,6 @@ This SCADA testbed is provided for educational and testing purposes.
 ---
 
 **For issues or questions, refer to logs or check Docker container status with:**
-\`\`\`bash
+```bash
 docker-compose ps
 docker-compose logs
