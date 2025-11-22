@@ -4,35 +4,8 @@ A comprehensive Docker-based SCADA testbed replica simulating a power generation
 
 ## System Architecture
 
-\`\`\`
-┌─────────────────────────────────────────────────────────────┐
-│                    SCADA Network (Docker)                   │
-├─────────────────────────────────────────────────────────────┤
-│                                                               │
-│  ┌──────────────────┐    ┌──────────────────┐               │
-│  │  RTU Substation  │    │  RTU Substation  │               │
-│  │       1          │    │       2          │               │
-│  │ (DNP3 Outstation)│    │ (DNP3 Outstation)│               │
-│  │  Port: 20000     │    │  Port: 20001     │               │
-│  └────────┬─────────┘    └────────┬─────────┘               │
-│           │                       │                         │
-│           └───────────────┬───────┘                         │
-│                           │                                 │
-│                    ┌──────▼──────┐                          │
-│                    │ SCADA Master │                         │
-│                    │   Server     │                         │
-│                    │ (DNP3 Master)│                         │
-│                    │  Port: 8080  │                         │
-│                    └──────┬──────┘                          │
-│                           │                                 │
-│                    ┌──────▼──────┐                          │
-│                    │ Data Logger  │                         │
-│                    │  Monitoring  │                         │
-│                    │  Port: 8081  │                         │
-│                    └──────────────┘                         │
-│                                                               │
-└─────────────────────────────────────────────────────────────┘
-\`\`\`
+<img width="455" height="538" alt="image" src="https://github.com/user-attachments/assets/472d7f82-21ad-46ad-97f4-40cd227c12ea" />
+
 
 ## Features
 
