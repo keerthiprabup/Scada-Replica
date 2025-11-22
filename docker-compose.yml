@@ -1,0 +1,119 @@
+version: '3.9'
+
+services:
+  # RTU Substation 1 - DNP3 Outstation
+  rtu-substation-1:
+    build:
+      context: ./docker/rtu-simulator
+      dockerfile: Dockerfile
+    container_name: scada-rtu-sub1
+    environment:
+      - RTU_ID=1
+      - RTU_NAME=Substation_1_Transformer
+      - DNP3_PORT=20000
+      - OUTSTATION_ADDR=10
+      - MIN_VOLTAGE=380
+      - MAX_VOLTAGE=420
+      - MIN_CURRENT=100
+      - MAX_CURRENT=800
+      - MIN_FREQ=59.8
+      - MAX_FREQ=60.2
+      - MIN_TEMP=20
+      - MAX_TEMP=85
+      - POLL_INTERVAL=5
+      - LOG_LEVEL=INFO
+    ports:
+      - "20000:20000"
+    networks:
+      - scada-network
+    volumes:
+      - ./logs:/app/logs
+    restart: unless-stopped
+
+  # RTU Substation 2 - DNP3 Outstation
+  rtu-substation-2:
+    build:
+      context: ./docker/rtu-simulator
+      dockerfile: Dockerfile
+    container_name: scada-rtu-sub2
+    environment:
+      - RTU_ID=2
+      - RTU_NAME=Substation_2_Transformer
+      - DNP3_PORT=20001
+      - OUTSTATION_ADDR=11
+      - MIN_VOLTAGE=380
+      - MAX_VOLTAGE=420
+      - MIN_CURRENT=150
+      - MAX_CURRENT=750
+      - MIN_FREQ=59.8
+      - MAX_FREQ=60.2
+      - MIN_TEMP=20
+      - MAX_TEMP=85
+      - POLL_INTERVAL=5
+      - LOG_LEVEL=INFO
+    ports:
+      - "20001:20001"
+    networks:
+      - scada-network
+    volumes:
+      - ./logs:/app/logs
+    restart: unless-stopped
+
+  # DNP3 Master SCADA Server
+  scada-master:
+    build:
+      context: ./docker/scada-server
+      dockerfile: Dockerfile
+    container_name: scada-master-server
+    environment:
+      - MASTER_ID=1
+      - OUTSTATION_1_HOST=rtu-substation-1
+      - OUTSTATION_1_PORT=20000
+      - OUTSTATION_1_ADDR=10
+      - OUTSTATION_2_HOST=rtu-substation-2
+      - OUTSTATION_2_PORT=20001
+      - OUTSTATION_2_ADDR=11
+      - POLL_INTERVAL=5
+      - API_PORT=8080
+      - LOG_LEVEL=INFO
+    ports:
+      - "8080:8080"
+    networks:
+      - scada-network
+    volumes:
+      - ./logs:/app/logs
+    depends_on:
+      - rtu-substation-1
+      - rtu-substation-2
+    restart: unless-stopped
+
+  # Data Logger and Monitoring
+  data-logger:
+    build:
+      context: ./docker/monitoring
+      dockerfile: Dockerfile
+    container_name: scada-data-logger
+    environment:
+      - SCADA_SERVER_URL=http://scada-master:8080
+      - POLL_INTERVAL=5
+      - LOG_PATH=/app/logs
+      - LOG_LEVEL=INFO
+    ports:
+      - "8081:8081"
+    networks:
+      - scada-network
+    volumes:
+      - ./logs:/app/logs
+    depends_on:
+      - scada-master
+    restart: unless-stopped
+
+networks:
+  scada-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+volumes:
+  logs:
