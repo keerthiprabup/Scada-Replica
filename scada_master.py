@@ -50,7 +50,6 @@ try:
         co = read_coils(c, sub["unit"], 0, 3)
 
         if hr and co:
-        if hr and co:
             print("\n[SUBSTATION (Generator)]")
             print(f" Exported MW     : {hr[0]/10:.1f} MW")
             print(f" Gen Output      : {hr[1]/10:.1f} MW")
