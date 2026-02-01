@@ -67,7 +67,7 @@ services:
   
   # 1. Wazuh Indexer (Search Engine)
   wazuh.indexer:
-    image: wazuh/wazuh-indexer:4.7.2
+    image: wazuh/wazuh-indexer:4.14.2
     container_name: wazuh.indexer
     hostname: wazuh.indexer
     ports:
@@ -86,7 +86,7 @@ services:
     
   # 2. Wazuh Manager (Core)
   wazuh.manager:
-    image: wazuh/wazuh-manager:4.7.2
+    image: wazuh/wazuh-manager:4.14.2
     container_name: wazuh.manager
     hostname: wazuh.manager
     ports:
@@ -104,7 +104,7 @@ services:
 
   # 3. Wazuh Dashboard (UI)
   wazuh.dashboard:
-    image: wazuh/wazuh-dashboard:4.7.2
+    image: wazuh/wazuh-dashboard:4.14.2
     container_name: wazuh.dashboard
     hostname: wazuh.dashboard
     ports:
