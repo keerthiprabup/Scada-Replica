@@ -83,6 +83,10 @@ def home_logic():
     hour_of_day = 8.0  # Start at 8 AM
     energy_today_kwh = 0
     last_time = time.time()
+
+    # Explicitly initialize coils (Fix for pymodbus init issue)
+    # CO0=1 (Supply Available)
+    context[UNIT_ID].setValues(1, 0, [1, 0, 0])
     
     while True:
         try:

@@ -44,7 +44,13 @@ def rtu_logic():
     gen_output_mw = 50.0
     gt_temp = GT_AMBIENT_TEMP_C + 5
     simulated_hour = 0.0
+    simulated_hour = 0.0
     last_log_time = time.time()
+    
+    # Explicitly initialize coils (Fix for pymodbus init issue)
+    # CO0=1 (GCB Closed)
+    context[UNIT_ID].setValues(1, 0, [1])
+
     coil_values = context[UNIT_ID].getValues(1, 0, count=1)
     gcb_closed = bool(coil_values[0]) if coil_values else True
     last_gcb_state = gcb_closed

@@ -57,6 +57,10 @@ def feeder_logic():
     feeder_load = 50.0
     load_shed_timer = 0
     
+    # Explicitly initialize coils (Fix for pymodbus init issue)
+    # CO0=1 (Breaker Closed), CO3=1 (Upstream Available)
+    context[UNIT_ID].setValues(1, 0, [1, 0, 0, 1])
+    
     while True:
         try:
             # ================= PLC LOGIC PIPELINE =================
