@@ -18,11 +18,11 @@ for name, cfg in RTUS.items():
 
 # ---------------- POLL FUNCTIONS ----------------
 def read_holding(client, unit, start, count):
-    rr = client.read_holding_registers(start, count=count, unit=unit)
+    rr = client.read_holding_registers(start, count=count, slave=unit)
     return rr.registers if not rr.isError() else None
 
 def read_coils(client, unit, start, count):
-    rr = client.read_coils(start, count=count, unit=unit)
+    rr = client.read_coils(start, count=count, slave=unit)
     return rr.bits if not rr.isError() else None
 
 # ---------------- MAIN LOOP ----------------
