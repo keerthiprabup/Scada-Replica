@@ -16,14 +16,26 @@ for name, cfg in RTUS.items():
     clients[name] = ModbusTcpClient(cfg["ip"], port=cfg["port"])
     clients[name].connect()
 
-# ---------------- POLL FUNCTIONS ----------------
+from pymodbus.exceptions import ModbusException
 def read_holding(client, unit, start, count):
-    rr = client.read_holding_registers(start, count=count, slave=unit)
-    return rr.registers if not rr.isError() else None
+    try:
+        if not client.connected:
+            client.connect()
+        rr = client.read_holding_registers(start, count=count, slave=unit)
+        return rr.registers if not rr.isError() else None
+    except Exception as e:
+        print(f"Error reading holding registers from unit {unit}: {e}")
+        return None
 
 def read_coils(client, unit, start, count):
-    rr = client.read_coils(start, count=count, slave=unit)
-    return rr.bits if not rr.isError() else None
+    try:
+        if not client.connected:
+            client.connect()
+        rr = client.read_coils(start, count=count, slave=unit)
+        return rr.bits if not rr.isError() else None
+    except Exception as e:
+        print(f"Error reading coils from unit {unit}: {e}")
+        return None
 
 # ---------------- MAIN LOOP ----------------
 try:
