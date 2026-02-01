@@ -1,119 +1,126 @@
-version: '3.9'
+version: '3.8'
 
 services:
-  # RTU Substation 1 - DNP3 Outstation
-  rtu-substation-1:
-    build:
-      context: ./docker/rtu-simulator
-      dockerfile: Dockerfile
-    container_name: scada-rtu-sub1
+  # ================= EXISTING SCADA SERVICES =================
+  substation:
+    build: .
+    container_name: substation
     environment:
-      - RTU_ID=1
-      - RTU_NAME=Substation_1_Transformer
-      - DNP3_PORT=20000
-      - OUTSTATION_ADDR=10
-      - MIN_VOLTAGE=380
-      - MAX_VOLTAGE=420
-      - MIN_CURRENT=100
-      - MAX_CURRENT=800
-      - MIN_FREQ=59.8
-      - MAX_FREQ=60.2
-      - MIN_TEMP=20
-      - MAX_TEMP=85
-      - POLL_INTERVAL=5
-      - LOG_LEVEL=INFO
+      - WAZUH_MANAGER_IP=wazuh.manager
+    command: ["python", "-u", "substation_rtu.py"]
     ports:
-      - "20000:20000"
-    networks:
-      - scada-network
-    volumes:
-      - ./logs:/app/logs
-    restart: unless-stopped
-
-  # RTU Substation 2 - DNP3 Outstation
-  rtu-substation-2:
-    build:
-      context: ./docker/rtu-simulator
-      dockerfile: Dockerfile
-    container_name: scada-rtu-sub2
-    environment:
-      - RTU_ID=2
-      - RTU_NAME=Substation_2_Transformer
-      - DNP3_PORT=20001
-      - OUTSTATION_ADDR=11
-      - MIN_VOLTAGE=380
-      - MAX_VOLTAGE=420
-      - MIN_CURRENT=150
-      - MAX_CURRENT=750
-      - MIN_FREQ=59.8
-      - MAX_FREQ=60.2
-      - MIN_TEMP=20
-      - MAX_TEMP=85
-      - POLL_INTERVAL=5
-      - LOG_LEVEL=INFO
-    ports:
-      - "20001:20001"
-    networks:
-      - scada-network
-    volumes:
-      - ./logs:/app/logs
-    restart: unless-stopped
-
-  # DNP3 Master SCADA Server
-  scada-master:
-    build:
-      context: ./docker/scada-server
-      dockerfile: Dockerfile
-    container_name: scada-master-server
-    environment:
-      - MASTER_ID=1
-      - OUTSTATION_1_HOST=rtu-substation-1
-      - OUTSTATION_1_PORT=20000
-      - OUTSTATION_1_ADDR=10
-      - OUTSTATION_2_HOST=rtu-substation-2
-      - OUTSTATION_2_PORT=20001
-      - OUTSTATION_2_ADDR=11
-      - POLL_INTERVAL=5
-      - API_PORT=8080
-      - LOG_LEVEL=INFO
-    ports:
-      - "8080:8080"
-    networks:
-      - scada-network
-    volumes:
-      - ./logs:/app/logs
+      - "5002:5002"
     depends_on:
-      - rtu-substation-1
-      - rtu-substation-2
-    restart: unless-stopped
+      - wazuh.manager
 
-  # Data Logger and Monitoring
-  data-logger:
-    build:
-      context: ./docker/monitoring
-      dockerfile: Dockerfile
-    container_name: scada-data-logger
+  feeder:
+    build: .
+    container_name: feeder
     environment:
-      - SCADA_SERVER_URL=http://scada-master:8080
-      - POLL_INTERVAL=5
-      - LOG_PATH=/app/logs
-      - LOG_LEVEL=INFO
+      - WAZUH_MANAGER_IP=wazuh.manager
+    command: ["python", "-u", "feeder_rtu.py"]
     ports:
-      - "8081:8081"
-    networks:
-      - scada-network
-    volumes:
-      - ./logs:/app/logs
+      - "5003:5003"
     depends_on:
-      - scada-master
-    restart: unless-stopped
+      - wazuh.manager
+  
+  home:
+    build: .
+    container_name: home
+    environment:
+      - WAZUH_MANAGER_IP=wazuh.manager
+    command: ["python", "-u", "home_rtu.py"]
+    ports:
+      - "5004:5004"
+    depends_on:
+      - wazuh.manager
+  
+  scada:
+    build: .
+    container_name: scada
+    environment:
+      - SUBSTATION_IP=substation
+      - FEEDER_IP=feeder
+      - HOME_IP=home
+      - WAZUH_MANAGER_IP=wazuh.manager
+    command: ["python", "-u", "scada_master.py"]
+    depends_on:
+      - substation
+      - feeder
+      - home
+      - wazuh.manager
 
-networks:
-  scada-network:
-    driver: bridge
-    ipam:
-      config:
-        - subnet: 172.20.0.0/16
+  controller:
+    build: .
+    container_name: controller
+    environment:
+      - SUBSTATION_IP=substation
+      - WAZUH_MANAGER_IP=wazuh.manager
+    command: ["python", "-u", "tempcontroller.py"]
+    depends_on:
+      - substation
+      - wazuh.manager
+    profiles:
+      - tools
+
+  # ================= WAZUH INFRASTRUCTURE =================
+  
+  # 1. Wazuh Indexer (Search Engine)
+  wazuh.indexer:
+    image: wazuh/wazuh-indexer:4.7.2
+    container_name: wazuh.indexer
+    hostname: wazuh.indexer
+    ports:
+      - "9200:9200"
+    environment:
+      - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    volumes:
+      - wazuh-indexer-data:/var/lib/wazuh-indexer
+    
+  # 2. Wazuh Manager (Core)
+  wazuh.manager:
+    image: wazuh/wazuh-manager:4.7.2
+    container_name: wazuh.manager
+    hostname: wazuh.manager
+    ports:
+      - "1514:1514"
+      - "1515:1515"
+      - "55000:55000"
+    environment:
+      - INDEXER_URL=https://wazuh.indexer:9200
+      - INDEXER_USERNAME=admin
+      - INDEXER_PASSWORD=SecretPassword1!
+    volumes:
+      - wazuh-manager-data:/var/ossec/data
+    depends_on:
+      - wazuh.indexer
+
+  # 3. Wazuh Dashboard (UI)
+  wazuh.dashboard:
+    image: wazuh/wazuh-dashboard:4.7.2
+    container_name: wazuh.dashboard
+    hostname: wazuh.dashboard
+    ports:
+      - "443:5601"
+    environment:
+      - INDEXER_URL=https://wazuh.indexer:9200
+      - INDEXER_USERNAME=admin
+      - INDEXER_PASSWORD=SecretPassword1!
+      - WAZUH_API_URL=https://wazuh.manager:55000
+    volumes:
+      - wazuh-dashboard-config:/usr/share/wazuh-dashboard/data
+    depends_on:
+      - wazuh.indexer
+      - wazuh.manager
 
 volumes:
-  logs:
+  wazuh-indexer-data:
+  wazuh-manager-data:
+  wazuh-dashboard-config:
