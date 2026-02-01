@@ -6,7 +6,8 @@ if [ ! -z "$WAZUH_MANAGER_IP" ]; then
     echo "Configuring Wazuh Agent to connect to $WAZUH_MANAGER_IP"
     
     # Update manager IP in ossec.conf
-    sed -i "s/<address>127.0.0.1<\/address>/<address>$WAZUH_MANAGER_IP<\/address>/" /var/ossec/etc/ossec.conf
+    # Update manager IP in ossec.conf - Replace any existing address
+    sed -i "s|<address>.*</address>|<address>$WAZUH_MANAGER_IP</address>|g" /var/ossec/etc/ossec.conf
     
     # Add configuration to monitor app logs
     # We append this to ossec.conf before the last </ossec_config>
