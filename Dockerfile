@@ -5,6 +5,7 @@ RUN apt-get update && apt-get install -y \
     curl \
     gnupg \
     lsb-release \
+    procps \
     && rm -rf /var/lib/apt/lists/*
 
 # Add Wazuh repo and install agent
