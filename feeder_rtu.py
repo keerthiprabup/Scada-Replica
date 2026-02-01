@@ -56,6 +56,7 @@ def feeder_logic():
     # Initialize
     feeder_load = 50.0
     load_shed_timer = 0
+    latched_trip = False
     
     # Explicitly initialize coils (Fix for pymodbus init issue)
     # CO0=1 (Breaker Closed), CO3=1 (Upstream Available)
@@ -67,17 +68,21 @@ def feeder_logic():
             t_rx = time.time()
             
             # 1. INPUT PROCESSING
-            # Read SCADA/Simulated Input Registers
-            # For Feeder, Upstream Coils are inputs from Substation (simulated here via simple logic or direct writes)
-            # In this sim, we check our own coil to see if upstream is valid (conceptually pushed by SCADA or sensed)
             coil_values = context[UNIT_ID].getValues(1, 0, count=4)
             breaker_cmd_close = bool(coil_values[0])
             load_shed_cmd = bool(coil_values[1])
-            upstream_available = bool(coil_values[3]) # CO3 - Usually sensed voltage
+            upstream_available = bool(coil_values[3])
+
+            # Reset latch if command is Open (Operator Acknowledgement)
+            if not breaker_cmd_close:
+                latched_trip = False
             
+            # Determine Physical Switch State
+            # Breaker is closed ONLY if Command is Closed AND Not Tripped
+            breaker_closed = breaker_cmd_close and not latched_trip
+
             # 2. PHYSICAL ABSTRACTION
-            # Load dynamics
-            if upstream_available and breaker_cmd_close: # Only if biologically closed (before trip logic)
+            if upstream_available and breaker_closed:
                  # Natural load variation
                  feeder_load += random.uniform(-2, 3)
                  feeder_load = max(25, min(feeder_load, 95))
@@ -85,10 +90,15 @@ def feeder_logic():
                  feeder_load = 0
             
             # 3. PROTECTION LOGIC
-            overload_trip = feeder_load > FEEDER_RATED_LOAD_PCT
+            # Instantaneous Overload Check
+            current_overload = feeder_load > FEEDER_RATED_LOAD_PCT
+            
+            if current_overload:
+                latched_trip = True
+                breaker_closed = False # Immediate Trip
             
             # Load Shed Logic (PLC Logic)
-            if overload_trip:
+            if current_overload:
                 load_shed_timer += 1
             else:
                 load_shed_timer = 0
@@ -98,19 +108,13 @@ def feeder_logic():
                 auto_load_shed = True
                 
             # 4. CONTROL COMMAND & OUTPUT CONDITIONING
-            # Breaker Status
-            if overload_trip:
-                breaker_closed = False # Trip
-            else:
-                breaker_closed = breaker_cmd_close # Follow SCADA
-            
             # Load Shed Status (Union of SCADA cmd and Auto Logic)
             final_load_shed = load_shed_cmd or auto_load_shed
             
             if final_load_shed and feeder_load > 0:
                  feeder_load *= 0.7 # Physical effect of load shedding
                  
-            # Calculate Electrical Params
+            # Re-calculate Electrical Params based on final load
             if feeder_load > 0:
                 voltage = FEEDER_RATED_VOLTAGE_V * (1.0 - (feeder_load / 100.0) * 0.08)
                 current = (feeder_load / 100.0) * FEEDER_RATED_CURRENT_A
@@ -127,13 +131,12 @@ def feeder_logic():
                 int(power_factor * 100), int(total_power_kw * 10)
             ])
             
-            # Update Feedback Coils (Only what we control/tripped)
-            # CO0: Breaker
-            if breaker_closed != breaker_cmd_close:
-                 context[UNIT_ID].setValues(1, 0, [int(breaker_closed)])
+            # Update Feedback Coils
+            # CO0: Breaker Status
+            context[UNIT_ID].setValues(1, 0, [int(breaker_closed)])
 
-            # CO2: Overload Alarm
-            context[UNIT_ID].setValues(1, 2, [int(overload_trip)])
+            # CO2: Overload Alarm (Latched)
+            context[UNIT_ID].setValues(1, 2, [int(latched_trip)])
 
             # CO1: Load Shed Status (Feedback)
             if final_load_shed != load_shed_cmd:

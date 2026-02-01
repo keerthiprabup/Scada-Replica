@@ -29,6 +29,7 @@ services:
     container_name: home
     environment:
       - WAZUH_MANAGER_IP=wazuh.manager
+      - FEEDER_IP=feeder
     command: ["python", "-u", "home_rtu.py"]
     ports:
       - "5004:5004"
@@ -74,6 +75,7 @@ services:
       default:
         aliases:
           - wazuh.indexer
+          - demo.indexer
     ports:
       - "9200:9200"
     environment:

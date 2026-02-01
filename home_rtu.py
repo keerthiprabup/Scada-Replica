@@ -12,6 +12,8 @@ import threading
 import random
 import time
 import math
+import os
+from pymodbus.client import ModbusTcpClient
 
 # Electrical Parameters
 HOME_VOLTAGE_V = 230
@@ -83,6 +85,10 @@ def home_logic():
     hour_of_day = 8.0  # Start at 8 AM
     energy_today_kwh = 0
     last_time = time.time()
+    
+    # Connect to Feeder RTU
+    feeder_ip = os.getenv("FEEDER_IP", "127.0.0.1")
+    feeder_client = ModbusTcpClient(feeder_ip, port=5003)
 
     # Explicitly initialize coils (Fix for pymodbus init issue)
     # CO0=1 (Supply Available)
@@ -106,6 +112,20 @@ def home_logic():
             supply_cmd_on = bool(coil_values[0])
             load_shed_cmd = bool(coil_values[2])
             
+            # Check Feeder Status (Upstream)
+            upstream_power = True
+            try:
+                if not feeder_client.connected:
+                    feeder_client.connect()
+                # Read Feeder Coil 0 (Breaker Status)
+                rr = feeder_client.read_coils(0, count=1, slave=2)
+                if rr and not rr.isError():
+                    upstream_power = rr.bits[0]
+                else:
+                    upstream_power = False # Fail-safe
+            except Exception:
+                upstream_power = False
+            
             # 2. PHYSICAL ABSTRACTION
             # Calculate demand
             demand_kw = calculate_home_load(hour_of_day)
@@ -125,7 +145,7 @@ def home_logic():
             if overload_trip:
                 supply_on = False
             else:
-                supply_on = supply_cmd_on
+                supply_on = supply_cmd_on and upstream_power
             
             # Actual Load
             load_kw = demand_kw if supply_on else 0
