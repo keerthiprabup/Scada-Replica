@@ -69,7 +69,11 @@ services:
   wazuh.indexer:
     image: wazuh/wazuh-indexer:4.7.2
     container_name: wazuh.indexer
-    hostname: wazuh.indexer
+    hostname: demo.indexer
+    networks:
+      default:
+        aliases:
+          - wazuh.indexer
     ports:
       - "9200:9200"
     environment:
@@ -94,7 +98,7 @@ services:
       - "1515:1515"
       - "55000:55000"
     environment:
-      - INDEXER_URL=https://wazuh.indexer:9200
+      - INDEXER_URL=https://demo.indexer:9200
       - INDEXER_USERNAME=admin
       - INDEXER_PASSWORD=SecretPassword1!
     volumes:
@@ -110,7 +114,7 @@ services:
     ports:
       - "443:5601"
     environment:
-      - INDEXER_URL=https://wazuh.indexer:9200
+      - INDEXER_URL=https://demo.indexer:9200
       - INDEXER_USERNAME=admin
       - INDEXER_PASSWORD=SecretPassword1!
       - WAZUH_API_URL=https://wazuh.manager:55000

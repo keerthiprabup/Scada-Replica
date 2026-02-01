@@ -50,16 +50,13 @@ try:
         co = read_coils(c, sub["unit"], 0, 3)
 
         if hr and co:
-            print("\n[SUBSTATION]")
-            print(f" Load            : {hr[0]} %")
-            print(f" Temperature     : {hr[1]} °C")
-            print(f" Primary Voltage : {hr[2]*10} V")
-            print(f" Secondary Volt  : {hr[3]} V")
-            print(f" Apparent Power  : {hr[4]*10} kVA")
-            print(f" Active Power    : {hr[5]*10} kW")
-            print(f" Breaker Closed  : {co[0]}")
-            print(f" Overload Trip   : {co[1]}")
-            print(f" High Temp Alarm : {co[2]}")
+        if hr and co:
+            print("\n[SUBSTATION (Generator)]")
+            print(f" Exported MW     : {hr[0]/10:.1f} MW")
+            print(f" Gen Output      : {hr[1]/10:.1f} MW")
+            print(f" Forecast        : {hr[2]/10:.1f} MW")
+            print(f" GT Temp         : {hr[3]} °C")
+            print(f" GCB Closed      : {co[0]}")
 
         # -------- FEEDER --------
         fed = RTUS["FEEDER"]
@@ -74,7 +71,7 @@ try:
             print(f" Voltage         : {hr[1]} V")
             print(f" Current         : {hr[2]} A")
             print(f" Power Factor    : {hr[3]/100:.2f}")
-            print(f" Power           : {hr[4]*10} kW")
+            print(f" Power           : {hr[4]/10:.1f} kW")
             print(f" Breaker Closed  : {co[0]}")
             print(f" Load Shed       : {co[1]}")
             print(f" Overload Alarm  : {co[2]}")
