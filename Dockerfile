@@ -18,7 +18,7 @@ RUN curl -s https://packages.wazuh.com/key/GPG-KEY-WAZUH | gpg --no-default-keyr
     rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies
-RUN pip install pymodbus
+RUN pip install pymodbus flask flask-cors
 
 # Setup app directory
 WORKDIR /app

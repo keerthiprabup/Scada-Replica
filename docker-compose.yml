@@ -7,7 +7,7 @@ services:
     container_name: substation
     environment:
       - WAZUH_MANAGER_IP=wazuh.manager
-    command: ["python", "-u", "substation_rtu.py"]
+    command: ["sh", "-c", "python -u substation_rtu.py | tee -a /app/app.log"]
     ports:
       - "5002:5002"
     depends_on:
@@ -18,7 +18,7 @@ services:
     container_name: feeder
     environment:
       - WAZUH_MANAGER_IP=wazuh.manager
-    command: ["python", "-u", "feeder_rtu.py"]
+    command: ["sh", "-c", "python -u feeder_rtu.py | tee -a /app/app.log"]
     ports:
       - "5003:5003"
     depends_on:
@@ -30,9 +30,37 @@ services:
     environment:
       - WAZUH_MANAGER_IP=wazuh.manager
       - FEEDER_IP=feeder
-    command: ["python", "-u", "home_rtu.py"]
+    command: ["sh", "-c", "python -u home_rtu.py | tee -a /app/app.log"]
     ports:
       - "5004:5004"
+    depends_on:
+      - wazuh.manager
+
+  home2:
+    build: .
+    container_name: home2
+    environment:
+      - WAZUH_MANAGER_IP=wazuh.manager
+      - FEEDER_IP=feeder
+      - UNIT_ID=4
+      - CONTRACT_LOAD_KW=3.0
+    command: ["sh", "-c", "python -u home_rtu.py | tee -a /app/app.log"]
+    ports:
+      - "5005:5004"
+    depends_on:
+      - wazuh.manager
+
+  home3:
+    build: .
+    container_name: home3
+    environment:
+      - WAZUH_MANAGER_IP=wazuh.manager
+      - FEEDER_IP=feeder
+      - UNIT_ID=5
+      - CONTRACT_LOAD_KW=7.0
+    command: ["sh", "-c", "python -u home_rtu.py | tee -a /app/app.log"]
+    ports:
+      - "5006:5004"
     depends_on:
       - wazuh.manager
   
@@ -42,9 +70,11 @@ services:
     environment:
       - SUBSTATION_IP=substation
       - FEEDER_IP=feeder
-      - HOME_IP=home
+      - HOME_IPS=home,home2,home3
       - WAZUH_MANAGER_IP=wazuh.manager
-    command: ["python", "-u", "scada_master.py"]
+    command: ["sh", "-c", "python -u scada_master.py | tee -a /app/app.log"]
+    ports:
+      - "5000:5000"
     depends_on:
       - substation
       - feeder
@@ -80,6 +110,7 @@ services:
       - "9200:9200"
     environment:
       - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m"
+      - "discovery.type=single-node"
     ulimits:
       memlock:
         soft: -1

@@ -13,8 +13,8 @@ if [ ! -z "$WAZUH_MANAGER_IP" ]; then
     # We append this to ossec.conf before the last </ossec_config>
     sed -i '/<\/ossec_config>/i \
   <localfile>\
-    <location>/app/log.json</location>\
-    <log_format>json</log_format>\
+    <location>/app/app.log</location>\
+    <log_format>syslog</log_format>\
   </localfile>' /var/ossec/etc/ossec.conf
 
     # Start Wazuh Agent (using service or direct binary)

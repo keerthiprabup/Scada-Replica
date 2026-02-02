@@ -73,8 +73,9 @@ def feeder_logic():
             load_shed_cmd = bool(coil_values[1])
             upstream_available = bool(coil_values[3])
 
-            # Reset latch if command is Open (Operator Acknowledgement)
-            if not breaker_cmd_close:
+            # Reset latch if command is Close (Manual Reset Attempt)
+            # If Operator sends Close (1), we reset the latch.
+            if breaker_cmd_close and latched_trip:
                 latched_trip = False
             
             # Determine Physical Switch State

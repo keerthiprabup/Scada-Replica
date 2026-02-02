@@ -17,11 +17,11 @@ from pymodbus.client import ModbusTcpClient
 
 # Electrical Parameters
 HOME_VOLTAGE_V = 230
-HOME_CONTRACT_LOAD_KW = 5.0
+HOME_CONTRACT_LOAD_KW = float(os.getenv("CONTRACT_LOAD_KW", 5.0))
 HOME_MIN_LOAD_KW = 0.3  # Base load (refrigerator, etc.)
 
 # Unit ID
-UNIT_ID = 3
+UNIT_ID = int(os.getenv("UNIT_ID", 3))
 
 # Modbus Register Map:
 # Holding Registers (HR):
