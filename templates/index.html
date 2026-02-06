@@ -1,69 +1,91 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SCADA Dashboard</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <title>SCADA Master Control</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
+
 <body>
-    <div class="container">
-        <header>
-            <h1>⚡ SCADA CONTROL CENTER</h1>
-            <div id="clock">00:00:00</div>
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <div class="brand">⚡ SCADA</div>
+
+        <nav class="nav-links">
+            <button class="active" data-target="dashboard-view">📊 Dashboard</button>
+            <button data-target="analysis-view">📈 Analysis</button>
+            <button data-target="settings-view">⚙️ Settings</button>
+        </nav>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <header class="header-bar">
+            <h2>System Overview</h2>
+            <div class="clock" id="clock">Loading...</div>
         </header>
 
-        <main class="grid">
-            <!-- GENERATION -->
-            <div class="card" id="card-substation">
-                <h2>🏭 Generation (Substation)</h2>
-                <div class="metrics">
-                    <div class="metric">
-                        <span class="label">Output</span>
-                        <span class="value" id="gen-mw">-- MW</span>
-                    </div>
-                    <div class="metric">
-                        <span class="label">Temp</span>
-                        <span class="value" id="gen-temp">-- °C</span>
-                    </div>
-                    <div class="status-box" id="gen-status">GCB: UNKNOWN</div>
-                </div>
+        <!-- DASHBOARD VIEW -->
+        <section id="dashboard-view" class="view-section active">
+            <div class="chart-container" style="height: 250px;">
+                <canvas id="mainChart"></canvas>
             </div>
 
-            <!-- FEEDER -->
-            <div class="card" id="card-feeder">
-                <h2>🔌 Distribution (Feeder)</h2>
-                <div class="metrics">
-                    <div class="metric">
-                        <span class="label">Load</span>
-                        <span class="value" id="feeder-kw">-- kW</span>
-                    </div>
-                    <div class="metric">
-                        <span class="label">Voltage</span>
-                        <span class="value" id="feeder-v">-- V</span>
-                    </div>
-                    <div class="metric">
-                        <span class="label">Amps</span>
-                        <span class="value" id="feeder-a">-- A</span>
-                    </div>
-                </div>
-                <div class="controls">
-                    <div class="status-indicator" id="feeder-cb-status">Breaker: --</div>
-                    <button class="btn btn-on" onclick="control('FEEDER', 'CLOSE')">CLOSE BREAKER</button>
-                    <button class="btn btn-off" onclick="control('FEEDER', 'OPEN')">TRIP BREAKER</button>
-                    <div id="feeder-alarm" class="alarm hidden">⚠️ OVERLOAD</div>
-                </div>
+            <div id="rtu-grid" class="dashboard-grid">
+                <!-- RTU Cards Injected Here -->
             </div>
+        </section>
 
-            <!-- HOMES GRID -->
-            <div class="full-width">
-                <h2>🏠 Consumers (Smart Homes)</h2>
-                <div class="home-grid" id="home-container">
-                    <!-- Dynamic Homes Render Here -->
-                </div>
+        <!-- ANALYSIS VIEW -->
+        <section id="analysis-view" class="view-section">
+            <div class="card">
+                <div class="card-header">Event Log</div>
+                <table class="log-table">
+                    <thead>
+                        <tr>
+                            <th>Timestamp</th>
+                            <th>Event Type</th>
+                            <th>Snapshot</th>
+                        </tr>
+                    </thead>
+                    <tbody id="log-table-body">
+                        <!-- Logs here -->
+                    </tbody>
+                </table>
             </div>
-        </main>
-    </div>
-    <script src="{{ url_for('static', filename='script.js') }}"></script>
+        </section>
+
+        <!-- SETTINGS VIEW -->
+        <section id="settings-view" class="view-section">
+            <div class="card" style="max-width: 500px">
+                <div class="card-header">Add Dynamic RTU</div>
+                <form id="add-rtu-form" onsubmit="event.preventDefault(); addRTU();">
+                    <div class="form-group">
+                        <label>RTU Name (Unique)</label>
+                        <input type="text" id="rtu-name" placeholder="e.g. HOME_NEW" required>
+                    </div>
+                    <div class="form-group">
+                        <label>IP Address</label>
+                        <input type="text" id="rtu-ip" value="127.0.0.1" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Port</label>
+                        <input type="number" id="rtu-port" value="5004" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Unit ID</label>
+                        <input type="number" id="rtu-unit" placeholder="e.g. 5" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Add RTU</button>
+                </form>
+            </div>
+        </section>
+    </main>
+
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
 </body>
+
 </html>
