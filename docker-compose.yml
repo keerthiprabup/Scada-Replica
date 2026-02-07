@@ -5,64 +5,64 @@ services:
   substation:
     build: .
     container_name: substation
-    environment:
-      - WAZUH_MANAGER_IP=wazuh.manager
+    # environment:
+    #   - WAZUH_MANAGER_IP=wazuh.manager
     command: ["sh", "-c", "python -u substation_rtu.py | tee -a /app/app.log"]
     ports:
       - "5002:5002"
-    depends_on:
-      - wazuh.manager
+    # depends_on:
+    #   - wazuh.manager
 
   feeder:
     build: .
     container_name: feeder
-    environment:
-      - WAZUH_MANAGER_IP=wazuh.manager
+    # environment:
+    #   - WAZUH_MANAGER_IP=wazuh.manager
     command: ["sh", "-c", "python -u feeder_rtu.py | tee -a /app/app.log"]
     ports:
       - "5003:5003"
-    depends_on:
-      - wazuh.manager
+    # depends_on:
+    #   - wazuh.manager
   
   home:
     build: .
     container_name: home
     environment:
-      - WAZUH_MANAGER_IP=wazuh.manager
+      # - WAZUH_MANAGER_IP=wazuh.manager
       - FEEDER_IP=feeder
     command: ["sh", "-c", "python -u home_rtu.py | tee -a /app/app.log"]
     ports:
       - "5004:5004"
-    depends_on:
-      - wazuh.manager
+    # depends_on:
+    #   - wazuh.manager
 
   home2:
     build: .
     container_name: home2
     environment:
-      - WAZUH_MANAGER_IP=wazuh.manager
+      # - WAZUH_MANAGER_IP=wazuh.manager
       - FEEDER_IP=feeder
       - UNIT_ID=4
       - CONTRACT_LOAD_KW=3.0
     command: ["sh", "-c", "python -u home_rtu.py | tee -a /app/app.log"]
     ports:
       - "5005:5004"
-    depends_on:
-      - wazuh.manager
+    # depends_on:
+      # - wazuh.manager
 
   home3:
     build: .
     container_name: home3
     environment:
-      - WAZUH_MANAGER_IP=wazuh.manager
+      # - WAZUH_MANAGER_IP=wazuh.manager
       - FEEDER_IP=feeder
       - UNIT_ID=5
       - CONTRACT_LOAD_KW=7.0
     command: ["sh", "-c", "python -u home_rtu.py | tee -a /app/app.log"]
     ports:
       - "5006:5004"
-    depends_on:
-      - wazuh.manager
+    # depends_on:
+    #   - wazuh.manager
   
   scada:
     build: .
@@ -71,7 +71,7 @@ services:
       - SUBSTATION_IP=substation
       - FEEDER_IP=feeder
       - HOME_IPS=home,home2,home3
-      - WAZUH_MANAGER_IP=wazuh.manager
+      # - WAZUH_MANAGER_IP=wazuh.manager
     command: ["sh", "-c", "python -u scada_master.py | tee -a /app/app.log"]
     ports:
       - "5000:5000"
@@ -79,85 +79,85 @@ services:
       - substation
       - feeder
       - home
-      - wazuh.manager
+      # - wazuh.manager
 
   controller:
     build: .
     container_name: controller
     environment:
       - SUBSTATION_IP=substation
-      - WAZUH_MANAGER_IP=wazuh.manager
+      # - WAZUH_MANAGER_IP=wazuh.manager
     command: ["python", "-u", "tempcontroller.py"]
     depends_on:
       - substation
-      - wazuh.manager
+      # - wazuh.manager
     profiles:
       - tools
 
-  # ================= WAZUH INFRASTRUCTURE =================
+#   # ================= WAZUH INFRASTRUCTURE =================
   
-  # 1. Wazuh Indexer (Search Engine)
-  wazuh.indexer:
-    image: wazuh/wazuh-indexer:4.7.2
-    container_name: wazuh.indexer
-    hostname: demo.indexer
-    networks:
-      default:
-        aliases:
-          - wazuh.indexer
-          - demo.indexer
-    ports:
-      - "9200:9200"
-    environment:
-      - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m"
-      - "discovery.type=single-node"
-    ulimits:
-      memlock:
-        soft: -1
-        hard: -1
-      nofile:
-        soft: 65536
-        hard: 65536
-    volumes:
-      - wazuh-indexer-data:/var/lib/wazuh-indexer
+#   # 1. Wazuh Indexer (Search Engine)
+#   wazuh.indexer:
+#     image: wazuh/wazuh-indexer:4.7.2
+#     container_name: wazuh.indexer
+#     hostname: demo.indexer
+#     networks:
+#       default:
+#         aliases:
+#           - wazuh.indexer
+#           - demo.indexer
+#     ports:
+#       - "9200:9200"
+#     environment:
+#       - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m"
+#       - "discovery.type=single-node"
+#     ulimits:
+#       memlock:
+#         soft: -1
+#         hard: -1
+#       nofile:
+#         soft: 65536
+#         hard: 65536
+#     volumes:
+#       - wazuh-indexer-data:/var/lib/wazuh-indexer
     
-  # 2. Wazuh Manager (Core)
-  wazuh.manager:
-    image: wazuh/wazuh-manager:4.7.2
-    container_name: wazuh.manager
-    hostname: wazuh.manager
-    ports:
-      - "1514:1514"
-      - "1515:1515"
-      - "55000:55000"
-    environment:
-      - INDEXER_URL=https://demo.indexer:9200
-      - INDEXER_USERNAME=admin
-      - INDEXER_PASSWORD=SecretPassword1!
-    volumes:
-      - wazuh-manager-data:/var/ossec/data
-    depends_on:
-      - wazuh.indexer
+#   # 2. Wazuh Manager (Core)
+#   wazuh.manager:
+#     image: wazuh/wazuh-manager:4.7.2
+#     container_name: wazuh.manager
+#     hostname: wazuh.manager
+#     ports:
+#       - "1514:1514"
+#       - "1515:1515"
+#       - "55000:55000"
+#     environment:
+#       - INDEXER_URL=https://demo.indexer:9200
+#       - INDEXER_USERNAME=admin
+#       - INDEXER_PASSWORD=SecretPassword1!
+#     volumes:
+#       - wazuh-manager-data:/var/ossec/data
+#     depends_on:
+#       - wazuh.indexer
 
-  # 3. Wazuh Dashboard (UI)
-  wazuh.dashboard:
-    image: wazuh/wazuh-dashboard:4.7.2
-    container_name: wazuh.dashboard
-    hostname: wazuh.dashboard
-    ports:
-      - "443:5601"
-    environment:
-      - INDEXER_URL=https://demo.indexer:9200
-      - INDEXER_USERNAME=admin
-      - INDEXER_PASSWORD=SecretPassword1!
-      - WAZUH_API_URL=https://wazuh.manager:55000
-    volumes:
-      - wazuh-dashboard-config:/usr/share/wazuh-dashboard/data
-    depends_on:
-      - wazuh.indexer
-      - wazuh.manager
+#   # 3. Wazuh Dashboard (UI)
+#   wazuh.dashboard:
+#     image: wazuh/wazuh-dashboard:4.7.2
+#     container_name: wazuh.dashboard
+#     hostname: wazuh.dashboard
+#     ports:
+#       - "443:5601"
+#     environment:
+#       - INDEXER_URL=https://demo.indexer:9200
+#       - INDEXER_USERNAME=admin
+#       - INDEXER_PASSWORD=SecretPassword1!
+#       - WAZUH_API_URL=https://wazuh.manager:55000
+#     volumes:
+#       - wazuh-dashboard-config:/usr/share/wazuh-dashboard/data
+#     depends_on:
+#       - wazuh.indexer
+#       - wazuh.manager
 
-volumes:
-  wazuh-indexer-data:
-  wazuh-manager-data:
-  wazuh-dashboard-config:
+# volumes:
+#   wazuh-indexer-data:
+#   wazuh-manager-data:
+#   wazuh-dashboard-config:
