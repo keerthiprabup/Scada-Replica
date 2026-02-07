@@ -28,20 +28,12 @@ def scan_modbus(ip, ports):
             client = ModbusTcpClient(ip, port=port)
             try:
                 if client.connect():
+            try:
+                if client.connect():
                     print(f"[+] Successfully connected to Modbus server at {ip}:{port}")
                     # Attempt to read registers to confirm. 
-                    # Try safe default call first (address=0, count=1)
-                    # Some versions need 'slave', some 'unit', some neither if default.
-                    try:
-                        # Try v3.x style
-                        rr = client.read_holding_registers(address=0, count=1, slave=1)
-                    except TypeError:
-                        try:
-                            # Try v2.x style
-                            rr = client.read_holding_registers(0, 1, unit=1)
-                        except TypeError:
-                            # Try minimal (defaults)
-                            rr = client.read_holding_registers(0, 1)
+                    # Pymodbus 3.11+ uses 'device_id' and keyword-only args for count/device_id
+                    rr = client.read_holding_registers(address=0, count=1, device_id=1)
                             
                     if not rr.isError():
                         print(f"    [+] confirmed Modbus protocol. Register 0: {rr.registers}")

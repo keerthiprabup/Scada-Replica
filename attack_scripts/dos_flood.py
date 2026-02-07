@@ -22,14 +22,8 @@ def flood_modbus(target_ip, target_port, duration):
 
         while time.time() - start_time < duration and not stop_threads:
             # Send a Read Holding Registers request (Function 03)
-            # Try multiple signatures for compatibility
-            try:
-                rr = client.read_holding_registers(address=0, count=10, slave=1)
-            except TypeError:
-                try:
-                    rr = client.read_holding_registers(0, 10, unit=1)
-                except TypeError:
-                    rr = client.read_holding_registers(0, 10)
+            # Pymodbus 3.11+ uses 'device_id'
+            rr = client.read_holding_registers(address=0, count=10, device_id=1)
             packet_count += 1
             # Optional: Add a tiny sleep to prevent self-DoS if the client becomes the bottleneck
             # time.sleep(0.001)
