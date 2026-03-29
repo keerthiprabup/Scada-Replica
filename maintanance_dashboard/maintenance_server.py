@@ -14,7 +14,6 @@ app = Flask(__name__)
 CORS(app)
 
 ISOLATION_MODE = False
-SCADA_MASTER_URL = "http://localhost:5000/api/status"
 IDS_PROCESS = None
 IDS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "models", "Isolation")
 
@@ -55,20 +54,6 @@ def isolate_system():
         threading.Thread(target=execute_isolation).start()
     return jsonify({"success": True, "isolated": True, "message": "Electrical system is under manual mode"})
 
-@app.route("/api/scada_status")
-def scada_status():
-    if ISOLATION_MODE:
-        return jsonify({
-            "status": "error", 
-            "message": "Electrical system is under manual mode",
-            "rtus": {} # Send empty RTUs so dashboard can reflect empty state if it wants
-        }), 503
-        
-    try:
-        resp = requests.get(SCADA_MASTER_URL, timeout=3)
-        return jsonify(resp.json())
-    except requests.exceptions.RequestException:
-         return jsonify({"status": "error", "message": "SCADA Master Offline", "rtus": {}}), 503
 
 @app.route("/api/unisolate", methods=["POST"])
 def unisolate_system():

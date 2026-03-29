@@ -1,7 +1,5 @@
 const API_BASE = "http://" + window.location.host + "/api";
 
-let feederChart;
-let substationChart;
 let anomalyChart;
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -27,39 +25,6 @@ function initNav() {
 }
 
 function initCharts() {
-    // Feeder Chart
-    const ctxF = document.getElementById('feederChart').getContext('2d');
-    feederChart = new Chart(ctxF, {
-        type: 'line',
-        data: {
-            labels: [],
-            datasets: [
-                { label: 'Load (%)', data: [], borderColor: '#3b82f6', tension: 0.4 },
-                { label: 'Current (A)', data: [], borderColor: '#eab308', tension: 0.4 }
-            ]
-        },
-        options: {
-            responsive: true, maintainAspectRatio: false,
-            scales: { x: { display: false }, y: { min: 0 } },
-            plugins: { legend: { labels: { color: '#cbd5e1' } } }
-        }
-    });
-
-    // Substation Chart
-    const ctxS = document.getElementById('substationChart').getContext('2d');
-    substationChart = new Chart(ctxS, {
-        type: 'line',
-        data: {
-            labels: [],
-            datasets: [{ label: 'Exported MW', data: [], borderColor: '#22c55e', fill: true, backgroundColor: 'rgba(34, 197, 94, 0.1)' }]
-        },
-        options: {
-            responsive: true, maintainAspectRatio: false,
-            scales: { x: { display: false }, y: { min: 0 } },
-            plugins: { legend: { labels: { color: '#cbd5e1' } } }
-        }
-    });
-
     // Anomaly Chart
     const ctxA = document.getElementById('anomalyChart').getContext('2d');
     anomalyChart = new Chart(ctxA, {
@@ -94,23 +59,8 @@ async function pollData() {
         
         handleIsolation(isoData.isolated);
 
-        // Fetch real-time SCADA
-        const scadaRes = await fetch(`${API_BASE}/scada_status`);
-        if (!scadaRes.ok && isoData.isolated) {
-            // SCADA stopped intentionally = All offline
-            updateDiagramOffline();
-            return;
-        }
-
-        const scadaData = await scadaRes.json();
-        if (scadaData.rtus) {
-            updateCharts(scadaData.rtus);
-            updateDiagram(scadaData.rtus);
-        }
-
     } catch (e) {
         console.error("Polling error:", e);
-        updateDiagramOffline();
     }
 }
 
@@ -132,75 +82,6 @@ function handleIsolation(isIsolated) {
     }
 }
 
-function updateCharts(rtus) {
-    const time = new Date().toLocaleTimeString();
-
-    // Feeder
-    if (rtus['FEEDER'] && !rtus['FEEDER'].status) {
-        const f = rtus['FEEDER'];
-        if (feederChart.data.labels.length > 20) {
-            feederChart.data.labels.shift();
-            feederChart.data.datasets.forEach(d => d.data.shift());
-        }
-        feederChart.data.labels.push(time);
-        feederChart.data.datasets[0].data.push(f.load_pct || 0);
-        feederChart.data.datasets[1].data.push(f.current || 0);
-        feederChart.update('none');
-    }
-
-    // Substation
-    if (rtus['SUBSTATION'] && !rtus['SUBSTATION'].status) {
-        const s = rtus['SUBSTATION'];
-        if (substationChart.data.labels.length > 20) {
-            substationChart.data.labels.shift();
-            substationChart.data.datasets[0].data.shift();
-        }
-        substationChart.data.labels.push(time);
-        substationChart.data.datasets[0].data.push(s.exported_mw || 0);
-        substationChart.update('none');
-    }
-}
-
-// Diagram Logic
-function updateDiagram(rtus) {
-    // Map RTU names to DOM node IDs
-    const map = {
-        'SUBSTATION': 'node-substation',
-        'FEEDER': 'node-feeder',
-        'HOME_1': 'node-home1',
-        'HOME_2': 'node-home2',
-        'HOME_3': 'node-home3'
-    };
-
-    // SCADA Master Node (always online if this runs)
-    setNodeState('node-scada', 'active', 'Online');
-
-    for (const [rtu, id] of Object.entries(map)) {
-        const data = rtus[rtu];
-        if (!data || data.status === 'OFFLINE' || data.status === 'ERROR') {
-            setNodeState(id, 'offline', 'Offline');
-        } else if (data.overload || data.overload_alarm || data.trip) {
-            setNodeState(id, 'alarm', 'Alarm');
-        } else if (data.breaker_closed === false || data.supply_on === false) {
-             setNodeState(id, 'alarm', 'Tripped');
-        } else {
-            setNodeState(id, 'active', 'Online');
-        }
-    }
-}
-
-function updateDiagramOffline() {
-    const nodes = ['node-scada','node-substation', 'node-feeder', 'node-home1', 'node-home2', 'node-home3'];
-    nodes.forEach(id => setNodeState(id, 'offline', 'Offline'));
-}
-
-function setNodeState(elemId, cls, text) {
-    const el = document.getElementById(elemId);
-    if (!el) return;
-    el.className = `flow-node ${cls}`;
-    const stateEl = el.querySelector('.state');
-    if (stateEl) stateEl.innerText = text;
-}
 
 // IDS Logics
 async function initIDS() {

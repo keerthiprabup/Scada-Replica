@@ -25,9 +25,7 @@
             <h1>Maintenance</h1>
         </div>
         <nav class="nav-links">
-            <button class="nav-btn active" data-target="data-view">Real-Time Data</button>
-            <button class="nav-btn" data-target="diagram-view">Flow Diagram</button>
-            <button class="nav-btn" data-target="ids-view">IDS Control</button>
+            <button class="nav-btn active" data-target="ids-view">IDS Control</button>
         </nav>
         <div class="system-status">
             <div id="status-indicator" class="indicator ok"></div>
@@ -42,82 +40,8 @@
             <div class="clock" id="clock">00:00:00</div>
         </header>
 
-        <!-- DATA VIEW: GRAPHS -->
-        <section id="data-view" class="view-section active">
-            <div class="chart-wrapper">
-                <h3>Feeder Metrics</h3>
-                <div class="chart-container">
-                    <canvas id="feederChart"></canvas>
-                </div>
-            </div>
-            <div class="chart-wrapper">
-                <h3>Substation Output (MW)</h3>
-                <div class="chart-container">
-                    <canvas id="substationChart"></canvas>
-                </div>
-            </div>
-        </section>
-
-        <!-- DIAGRAM VIEW: FLOWCHART -->
-        <section id="diagram-view" class="view-section">
-            <div class="diagram-container">
-                <div class="node-level layer-master">
-                    <div class="flow-node active" id="node-scada">
-                        <div class="icon">🖥️</div>
-                        <div class="name">SCADA Master</div>
-                        <div class="state" id="state-scada">Online</div>
-                    </div>
-                </div>
-
-                <div class="flow-connector v-line"></div>
-
-                <div class="node-level layer-substation">
-                    <div class="flow-node active" id="node-substation">
-                        <div class="icon">🏭</div>
-                        <div class="name">Substation</div>
-                        <div class="state" id="state-substation">Online</div>
-                    </div>
-                </div>
-
-                <div class="flow-connector v-line"></div>
-
-                <div class="node-level layer-feeder">
-                    <div class="flow-node active" id="node-feeder">
-                        <div class="icon">⚡</div>
-                        <div class="name">Feeder</div>
-                        <div class="state" id="state-feeder">Online</div>
-                    </div>
-                </div>
-
-                <!-- Connectors to Homes -->
-                <div class="flow-branches">
-                    <div class="branch"></div>
-                    <div class="branch"></div>
-                    <div class="branch"></div>
-                </div>
-
-                <div class="node-level layer-homes">
-                    <div class="flow-node active" id="node-home1">
-                        <div class="icon">🏠</div>
-                        <div class="name">Home 1</div>
-                        <div class="state" id="state-home1">Online</div>
-                    </div>
-                    <div class="flow-node active" id="node-home2">
-                        <div class="icon">🏘️</div>
-                        <div class="name">Home 2</div>
-                        <div class="state" id="state-home2">Online</div>
-                    </div>
-                    <div class="flow-node active" id="node-home3">
-                        <div class="icon">🏙️</div>
-                        <div class="name">Home 3</div>
-                        <div class="state" id="state-home3">Online</div>
-                    </div>
-                </div>
-            </div>
-        </section>
-
         <!-- IDS VIEW: CONTROLS & LOGS -->
-        <section id="ids-view" class="view-section">
+        <section id="ids-view" class="view-section active">
             <div class="ids-toolbar">
                 <div class="ids-controls">
                     <label for="interface-select">Interface:</label>
