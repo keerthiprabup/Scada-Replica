@@ -88,6 +88,9 @@ def get_interfaces_api():
 @app.route("/api/ids/start", methods=["POST"])
 def start_ids():
     from flask import request
+    if request.json.get("password") != "userxyz":
+        return jsonify({"success": False, "message": "Invalid password"}), 401
+    
     global IDS_PROCESS
     if IDS_PROCESS is not None and IDS_PROCESS.poll() is None:
         return jsonify({"success": False, "message": "IDS is already running"})
@@ -103,6 +106,10 @@ def start_ids():
 
 @app.route("/api/ids/stop", methods=["POST"])
 def stop_ids():
+    from flask import request
+    if request.json.get("password") != "userxyz":
+        return jsonify({"success": False, "message": "Invalid password"}), 401
+        
     global IDS_PROCESS
     if IDS_PROCESS is not None and IDS_PROCESS.poll() is None:
         IDS_PROCESS.terminate()
