@@ -269,10 +269,25 @@ async function initIDS() {
         select.innerHTML = '';
         interfaces.forEach(i => {
             const opt = document.createElement('option');
-            opt.value = i;
-            opt.innerText = i;
+            opt.value = i.name;
+            opt.innerText = i.ip ? `${i.name} (IP: ${i.ip})` : i.name;
             select.appendChild(opt);
         });
+    } catch(e) { console.error(e); }
+
+    // Load containers
+    try {
+        const res = await fetch(`${API_BASE}/containers`);
+        const containers = await res.json();
+        const ipList = document.getElementById('container-ips-list');
+        if (containers && containers.length > 0) {
+            ipList.innerHTML = containers.map(c => `<div style="display:flex; justify-content:space-between; margin-bottom: 2px;">
+                <span style="color:#94a3b8;">${c.name}</span>
+                <span style="color:#bbf7d0;">${c.ip || 'No IP'}</span>
+            </div>`).join('');
+        } else {
+            ipList.innerHTML = '<span style="color:#ef4444;">No running containers found on br-xyb.</span>';
+        }
     } catch(e) { console.error(e); }
 }
 

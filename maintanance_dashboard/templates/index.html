@@ -48,10 +48,17 @@
         <section id="ids-view" class="view-section active">
             <div class="ids-toolbar">
                 <div class="ids-controls">
-                    <label for="interface-select">Interface:</label>
+                    <label for="interface-select">Capture Interface:</label>
                     <select id="interface-select" class="dropdown">
                         <option value="br-xyb">br-xyb (Default)</option>
                     </select>
+
+                    <div style="margin-top: 15px; margin-bottom: 15px;">
+                        <span style="color:#94a3b8; font-size:0.85rem; display:block; margin-bottom:5px;">Docker Target IPs</span>
+                        <div id="container-ips-list" style="color:#e2e8f0; font-family:monospace; font-size:0.85rem; max-height:120px; overflow-y:auto; background:#1e293b; padding:10px; border-radius:4px; border:1px solid #334155;">
+                            Scanning SCADA subnets...
+                        </div>
+                    </div>
                     <input type="password" id="ids-password" class="dropdown" placeholder="Passcode"
                         style="width:100px;">
                     <button id="btn-start-ids" class="ids-btn start">Start IDS</button>

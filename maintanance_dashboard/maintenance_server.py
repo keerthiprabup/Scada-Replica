@@ -95,16 +95,30 @@ def get_interfaces_api():
                     ip = addr.address
                     break
             if ip:
-                result.append(f"{interface_name} (IP: {ip})")
+                result.append({"name": interface_name, "ip": ip})
             else:
-                result.append(interface_name)
+                result.append({"name": interface_name, "ip": None})
         return jsonify(result)
     else:
         try:
             output = subprocess.check_output(["powershell", "-NoProfile", "-Command", "(Get-NetAdapter).Name"], text=True)
-            return jsonify([line.strip() for line in output.split('\n') if line.strip()])
+            return jsonify([{"name": line.strip(), "ip": None} for line in output.split('\n') if line.strip()])
         except Exception:
-            return jsonify(["br-xyb", "Ethernet", "Wi-Fi"])
+            return jsonify([{"name": "br-xyb", "ip": None}])
+
+@app.route("/api/containers")
+def get_containers():
+    try:
+        import subprocess, json
+        output = subprocess.check_output(["docker", "network", "inspect", "br-xyb"], text=True)
+        net_info = json.loads(output)
+        containers = net_info[0].get("Containers", {})
+        result = []
+        for cid, details in containers.items():
+            result.append({"name": details.get("Name"), "ip": details.get("IPv4Address", "").split("/")[0]})
+        return jsonify(result)
+    except Exception:
+        return jsonify([])
 
 @app.route("/api/ids/start", methods=["POST"])
 def start_ids():
