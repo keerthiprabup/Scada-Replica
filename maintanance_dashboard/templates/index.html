@@ -12,17 +12,10 @@
 </head>
 
 <body>
-    <!-- Isolation Alert Banner -->
     <div id="isolation-banner" class="alert-banner hidden">
         <span class="alert-icon">⚠️</span>
         <h2>SYSTEM IN MANUAL MODE - ISOLATED</h2>
         <p>The electrical system has been automatically isolated due to an anomaly detection.</p>
-        <div style="margin-top: 15px; display:flex; gap:10px; justify-content:center;">
-            <button id="btn-unisolate" class="btn-rescue">Bring Back from Isolation</button>
-            <button id="btn-analyse-vector" class="btn-rescue"
-                style="background-color:#0f172a; color:#f87171; border: 1px solid #f87171;">Analyse Attack
-                Vector</button>
-        </div>
     </div>
 
     <!-- Sidebar -->
@@ -36,6 +29,7 @@
             <button class="nav-btn scada-feature" data-target="dashboard-view">SCADA Dashboard</button>
             <button class="nav-btn scada-feature" data-target="analysis-view">SCADA Analysis</button>
             <button class="nav-btn scada-feature" data-target="settings-view">SCADA Settings</button>
+            <button class="nav-btn scada-feature" data-target="breaches-view" style="color:#fca5a5; font-weight:bold;">🚨 Breaches</button>
         </nav>
         <div class="system-status">
             <div id="status-indicator" class="indicator ok"></div>
@@ -64,6 +58,11 @@
                     <button id="btn-stop-ids" class="ids-btn stop" disabled>Stop IDS</button>
                     <button id="btn-unlock-scada" class="ids-btn start"
                         style="background-color: #f59e0b; margin-left:15px;">Unlock SCADA</button>
+                    
+                    <div style="margin-top:15px; border-top:1px solid #334155; padding-top:15px; display:flex; gap:10px;">
+                        <button id="btn-manual-isolate" class="ids-btn stop" style="background-color:#ef4444; width:50%;">Isolate Network</button>
+                        <button id="btn-manual-unisolate" class="ids-btn start" style="width:50%;">Unisolate Network</button>
+                    </div>
                 </div>
                 <div class="ids-status-badge">
                     Status: <span id="ids-status-text" class="status-offline">Stopped</span>
@@ -144,32 +143,60 @@
             </div>
         </section>
 
-        <!-- ATTACK VECTOR VIEW -->
-        <section id="attack-vector-view" class="view-section">
+        <!-- BREACHES VIEW -->
+        <section id="breaches-view" class="view-section scada-feature" style="display:none;">
             <div class="log-wrapper" style="border-color: #ef4444; border-width:2px;">
-                <h3 style="color: #ef4444; border-bottom:1px solid #ef4444;">🚨 Post-Incident Packet Analysis</h3>
-                <div style="display:flex; gap:20px; flex-wrap:wrap; margin-bottom: 20px; margin-top:20px;">
-                    <div
-                        style="flex:1; min-width:300px; background:#0f172a; padding:15px; border-radius:8px; border:1px solid #334155;">
-                        <h4 style="color:#94a3b8; margin-top:0; font-weight:600;">Determined Classification</h4>
-                        <div id="vector-classification"
-                            style="font-size:1.1rem; color:#fca5a5; font-weight:bold; margin-top:10px;">Loading...</div>
-                        <div style="margin-top: 15px; font-size:0.9rem; color:#cbd5e1;">Anomaly Score: <span
-                                id="vector-score" style="color:#fbbf24;"></span></div>
-                    </div>
-                    <div
-                        style="flex:1; min-width:300px; background:#0f172a; padding:15px; border-radius:8px; border:1px solid #334155;">
-                        <h4 style="color:#94a3b8; margin-top:0; font-weight:600;">Packet Signatures</h4>
-                        <div id="vector-metrics"
-                            style="color:#e2e8f0; line-height:1.6; font-family:monospace; font-size:0.9rem;">
-                        </div>
+                <h3 style="color: #ef4444; border-bottom:1px solid #ef4444;">🚨 Breach Ledger & Analysis</h3>
+                
+                <div class="chart-wrapper" style="margin-top:20px; border-color:#334155;">
+                    <h3 style="color:#94a3b8; font-size:1rem; border:none; padding:0;">Anomaly Timeline</h3>
+                    <div class="chart-container" style="height: 250px;">
+                        <canvas id="breachTimelineChart"></canvas>
                     </div>
                 </div>
-                <div class="chart-wrapper" style="background:transparent; border:none;">
-                    <h3 style="color:#94a3b8; font-size:1rem; border:none; padding:0;">Feature Radar Matrix vs Baseline
-                    </h3>
-                    <div class="chart-container" style="height: 350px;">
-                        <canvas id="vectorRadarChart"></canvas>
+
+                <h4 style="color:#94a3b8; margin-top:30px; border-bottom:1px solid #334155; padding-bottom:5px;">Historical Ledger (Click row to analyse)</h4>
+                <div class="log-wrapper" style="margin-top:15px;">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Timestamp</th>
+                                <th>Classification</th>
+                                <th>Score</th>
+                                <th>Src -> Dst</th>
+                            </tr>
+                        </thead>
+                        <tbody id="breach-table-body">
+                            <!-- Populated via app.js -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <div id="vector-analysis-panel" style="display:none; margin-top:30px;">
+                    <h4 style="color:#fca5a5; margin-top:0; font-weight:600; text-align:center;">Selected Vector Matrix</h4>
+                    <div style="display:flex; gap:20px; flex-wrap:wrap; margin-bottom: 20px;">
+                        <div
+                            style="flex:1; min-width:300px; background:#0f172a; padding:15px; border-radius:8px; border:1px solid #334155;">
+                            <h4 style="color:#94a3b8; margin-top:0; font-weight:600;">Determined Classification</h4>
+                            <div id="vector-classification"
+                                style="font-size:1.1rem; color:#fca5a5; font-weight:bold; margin-top:10px;">Loading...</div>
+                            <div style="margin-top: 15px; font-size:0.9rem; color:#cbd5e1;">Anomaly Score: <span
+                                    id="vector-score" style="color:#fbbf24;"></span></div>
+                        </div>
+                        <div
+                            style="flex:1; min-width:300px; background:#0f172a; padding:15px; border-radius:8px; border:1px solid #334155;">
+                            <h4 style="color:#94a3b8; margin-top:0; font-weight:600;">Packet Signatures</h4>
+                            <div id="vector-metrics"
+                                style="color:#e2e8f0; line-height:1.6; font-family:monospace; font-size:0.9rem;">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="chart-wrapper" style="background:transparent; border:none;">
+                        <h3 style="color:#94a3b8; font-size:1rem; border:none; padding:0;">Feature Radar vs Baseline
+                        </h3>
+                        <div class="chart-container" style="height: 300px; max-width:500px; margin:0 auto;">
+                            <canvas id="vectorRadarChart"></canvas>
+                        </div>
                     </div>
                 </div>
             </div>

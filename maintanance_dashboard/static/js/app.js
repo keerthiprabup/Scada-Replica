@@ -4,6 +4,7 @@ const SCADA_API_BASE = "http://localhost:5000/api";
 let anomalyChart;
 let mainChart;
 let vectorRadarChart;
+let breachTimelineChart;
 let isIdsRunning = false;
 let isScadaUnlocked = false;
 
@@ -11,7 +12,6 @@ document.addEventListener('DOMContentLoaded', () => {
     initNav();
     initCharts();
     initIDS();
-    initAttackVector();
     startEngine();
 });
 
@@ -25,7 +25,12 @@ function initNav() {
             sections.forEach(s => s.classList.remove('active'));
 
             btn.classList.add('active');
-            document.getElementById(btn.dataset.target).classList.add('active');
+            const targetId = btn.dataset.target;
+            document.getElementById(targetId).classList.add('active');
+            
+            if (targetId === 'breaches-view') {
+                fetchBreaches();
+            }
         });
     });
 }
@@ -98,6 +103,39 @@ function initCharts() {
             plugins: { legend: { display:false } }
         }
     });
+
+    // Breach Timeline Chart
+    const ctxB = document.getElementById('breachTimelineChart').getContext('2d');
+    breachTimelineChart = new Chart(ctxB, {
+        type: 'scatter',
+        data: {
+            datasets: [{
+                label: 'Anomaly Breaches',
+                data: [],
+                backgroundColor: '#ef4444',
+                borderColor: '#ef4444',
+                pointRadius: 6,
+                pointHoverRadius: 8
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                x: {
+                    type: 'category',
+                    grid: { color: '#334155' },
+                    ticks: { color: '#94a3b8' }
+                },
+                y: {
+                    grid: { color: '#334155' },
+                    ticks: { color: '#94a3b8' },
+                    title: { display:true, text:'Anomaly Score', color:'#cbd5e1'}
+                }
+            },
+            plugins: { legend: { display:false } }
+        }
+    });
 }
 
 function startEngine() {
@@ -145,11 +183,31 @@ function handleIsolation(isIsolated) {
 
 // IDS Logics
 async function initIDS() {
-    // Buttons
-    document.getElementById('btn-unisolate').addEventListener('click', async () => {
+    document.getElementById('btn-manual-isolate').addEventListener('click', async () => {
+        const pwd = document.getElementById('ids-password').value;
         try {
-            await fetch(`${API_BASE}/unisolate`, { method: 'POST' });
-            pollData(); // Force immediate update
+            const res = await fetch(`${API_BASE}/isolate`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({password: pwd})
+            });
+            const d = await res.json();
+            if (!d.success) alert(d.message);
+            pollData();
+        } catch(e) { console.error(e); }
+    });
+
+    document.getElementById('btn-manual-unisolate').addEventListener('click', async () => {
+        const pwd = document.getElementById('ids-password').value;
+        try {
+            const res = await fetch(`${API_BASE}/unisolate`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({password: pwd})
+            });
+            const d = await res.json();
+            if (!d.success) alert(d.message);
+            pollData();
         } catch(e) { console.error(e); }
     });
 
@@ -438,47 +496,63 @@ async function addRTU() {
     document.getElementById('add-rtu-form').reset();
 }
 
-function initAttackVector() {
-    document.getElementById('btn-analyse-vector').addEventListener('click', async () => {
-        try {
-            const res = await fetch(`${API_BASE}/anomaly_report`);
-            if (!res.ok) {
-                alert("No anomaly report available yet.");
-                return;
-            }
-            const report = await res.json();
-            
-            // Navigate to view
-            document.querySelectorAll('.view-section').forEach(s => s.classList.remove('active'));
-            document.getElementById('attack-vector-view').classList.add('active');
-            document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+async function fetchBreaches() {
+    try {
+        const res = await fetch(`${API_BASE}/breach_history`);
+        if (!res.ok) return;
+        const history = await res.json();
+        
+        // Populate chart
+        breachTimelineChart.data.labels = history.map(h => h.timestamp.split(' ')[1] || h.timestamp);
+        breachTimelineChart.data.datasets[0].data = history.map((h) => ({x: h.timestamp.split(' ')[1] || h.timestamp, y: h.anomaly_score}));
+        breachTimelineChart.update();
 
-            // Populate text
-            document.getElementById('vector-classification').innerText = report.classification || "Unknown Attack";
-            document.getElementById('vector-score').innerText = (report.anomaly_score || 0).toFixed(4);
-            document.getElementById('vector-metrics').innerHTML = `
-                Timestamp:    <span style="color:#fbbf24">${report.timestamp}</span><br>
-                Source IP:    <span style="color:#fbbf24">${report.src_ip}:${report.src_port || 'N/A'}</span><br>
-                Dest IP:      <span style="color:#fbbf24">${report.dst_ip}:${report.dst_port || 'N/A'}</span><br>
-                Packet Len:   <span style="color:#fbbf24">${report.length} bytes</span><br>
-                TCP Length:   <span style="color:#fbbf24">${report.tcp_len || 0} bytes</span><br>
-                Time To Live: <span style="color:#fbbf24">${report.ttl || 0} jumps</span><br>
-                Packet Rate:  <span style="color:#fbbf24">${(report.packet_rate || 0).toFixed(1)} pkt/s</span><br>
+        // Populate table
+        const tbody = document.getElementById('breach-table-body');
+        tbody.innerHTML = '';
+        
+        history.slice().reverse().forEach((log) => {
+            const tr = document.createElement('tr');
+            tr.style.cursor = "pointer";
+            tr.innerHTML = `
+                <td>${log.timestamp}</td>
+                <td><span style="color:#fca5a5; font-weight:bold;">${log.classification}</span></td>
+                <td>${log.anomaly_score.toFixed(4)}</td>
+                <td>${log.src_ip}:${log.src_port || ''} &rarr; ${log.dst_ip}:${log.dst_port || ''}</td>
             `;
+            tr.onclick = () => renderVectorAnalysis(log);
+            tbody.appendChild(tr);
+        });
 
-            // Max scale for radar (heuristic normalization)
-            const d = [
-                Math.min((report.length || 0)/1500, 1), 
-                Math.min((report.tcp_len || 0)/100, 1), 
-                1, // We don't log time delta, just setting a visual baseline
-                Math.min((report.packet_rate || 0)/500, 1), 
-                (report.ttl || 64) > 128 ? 1 : 0.5,
-                ((report.src_port || 0) !== (report.dst_port || 0)) ? 1 : 0
-            ];
-            
-            vectorRadarChart.data.datasets[0].data = d;
-            vectorRadarChart.update();
+    } catch(e) {}
+}
 
-        } catch(e) { console.error("Attack Vector Fetch Error:", e); }
-    });
+function renderVectorAnalysis(report) {
+    document.getElementById('vector-analysis-panel').style.display = 'block';
+    
+    document.getElementById('vector-classification').innerText = report.classification || "Unknown Attack";
+    document.getElementById('vector-score').innerText = (report.anomaly_score || 0).toFixed(4);
+    document.getElementById('vector-metrics').innerHTML = `
+        Timestamp:    <span style="color:#fbbf24">${report.timestamp}</span><br>
+        Source IP:    <span style="color:#fbbf24">${report.src_ip}:${report.src_port || 'N/A'}</span><br>
+        Dest IP:      <span style="color:#fbbf24">${report.dst_ip}:${report.dst_port || 'N/A'}</span><br>
+        Packet Len:   <span style="color:#fbbf24">${report.length} bytes</span><br>
+        TCP Length:   <span style="color:#fbbf24">${report.tcp_len || 0} bytes</span><br>
+        Time To Live: <span style="color:#fbbf24">${report.ttl || 0} jumps</span><br>
+        Packet Rate:  <span style="color:#fbbf24">${(report.packet_rate || 0).toFixed(1)} pkt/s</span><br>
+    `;
+
+    const d = [
+        Math.min((report.length || 0)/1500, 1), 
+        Math.min((report.tcp_len || 0)/100, 1), 
+        1, 
+        Math.min((report.packet_rate || 0)/500, 1), 
+        (report.ttl || 64) > 128 ? 1 : 0.5,
+        ((report.src_port || 0) !== (report.dst_port || 0)) ? 1 : 0
+    ];
+    
+    vectorRadarChart.data.datasets[0].data = d;
+    vectorRadarChart.update();
+    
+    document.getElementById('vector-analysis-panel').scrollIntoView({behavior: 'smooth'});
 }

@@ -18,6 +18,7 @@ INTERFACE = args.interface
 MODEL_PATH = "isolation_forest_model.joblib"
 SCALER_PATH = "scaler.joblib"
 REPORT_FILE = "anomaly_report.json"
+HISTORY_FILE = "anomaly_history.json"
 LIVE_SCORES_FILE = "live_scores.json"
 LOG_FILE = "ids.log"
 MAINTENANCE_SERVER_URL = "http://localhost:5050/api/isolate"
@@ -149,6 +150,22 @@ def handle_anomaly(packet, score, features):
 
         with open(REPORT_FILE, "w") as f:
             json.dump(report, f, indent=4)
+            
+        import os
+        history = []
+        if os.path.exists(HISTORY_FILE):
+            try:
+                with open(HISTORY_FILE, "r") as f:
+                    history = json.load(f)
+            except:
+                pass
+        
+        # Keep last 500 breaches so file doesn't grow infinitely
+        history.append(report)
+        history = history[-500:]
+        
+        with open(HISTORY_FILE, "w") as f:
+            json.dump(history, f, indent=4)
 
         logging.critical(f"ANOMALY DETECTED: {report}")
         print("\n[🚨] ANOMALY DETECTED!")

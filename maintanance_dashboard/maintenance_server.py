@@ -48,6 +48,10 @@ def execute_isolation():
 
 @app.route("/api/isolate", methods=["POST"])
 def isolate_system():
+    from flask import request
+    if not request.json or request.json.get("password") != "userxyz":
+        return jsonify({"success": False, "message": "Invalid password"}), 401
+        
     global ISOLATION_MODE
     if not ISOLATION_MODE:
         # Run isolation in a background thread so we don't block the response
@@ -57,6 +61,10 @@ def isolate_system():
 
 @app.route("/api/unisolate", methods=["POST"])
 def unisolate_system():
+    from flask import request
+    if not request.json or request.json.get("password") != "userxyz":
+        return jsonify({"success": False, "message": "Invalid password"}), 401
+    
     global ISOLATION_MODE
     ISOLATION_MODE = False
     print("[!] Recovering system from isolation...")
@@ -77,7 +85,20 @@ def unisolate_system():
 @app.route("/api/interfaces")
 def get_interfaces_api():
     if psutil:
-        return jsonify(list(psutil.net_if_addrs().keys()))
+        import socket
+        result = []
+        stats = psutil.net_if_addrs()
+        for interface_name, addrs in stats.items():
+            ip = None
+            for addr in addrs:
+                if addr.family == socket.AF_INET:
+                    ip = addr.address
+                    break
+            if ip:
+                result.append(f"{interface_name} (IP: {ip})")
+            else:
+                result.append(interface_name)
+        return jsonify(result)
     else:
         try:
             output = subprocess.check_output(["powershell", "-NoProfile", "-Command", "(Get-NetAdapter).Name"], text=True)
@@ -165,6 +186,18 @@ def anomaly_report():
         except:
             return jsonify({"error": "Failed to read report"}), 500
     return jsonify({"error": "No report found"}), 404
+
+@app.route("/api/breach_history", methods=["GET"])
+def breach_history():
+    import json
+    report_file = os.path.join(IDS_DIR, "anomaly_history.json")
+    if os.path.exists(report_file):
+        try:
+            with open(report_file, "r") as f:
+                return jsonify(json.load(f))
+        except:
+            return jsonify([])
+    return jsonify([])
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5050)
