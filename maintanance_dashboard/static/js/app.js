@@ -3,12 +3,15 @@ const SCADA_API_BASE = "http://localhost:5000/api";
 
 let anomalyChart;
 let mainChart;
+let vectorRadarChart;
 let isIdsRunning = false;
+let isScadaUnlocked = false;
 
 document.addEventListener('DOMContentLoaded', () => {
     initNav();
     initCharts();
     initIDS();
+    initAttackVector();
     startEngine();
 });
 
@@ -64,6 +67,35 @@ function initCharts() {
                 y1: { position: 'right', grid: { drawOnChartArea: false }, ticks: { color: '#22c55e' } }
             },
             plugins: { legend: { labels: { color: '#e2e8f0' } } }
+        }
+    });
+
+    // Vector Radar Chart
+    const ctxV = document.getElementById('vectorRadarChart').getContext('2d');
+    vectorRadarChart = new Chart(ctxV, {
+        type: 'radar',
+        data: {
+            labels: ['Pkt Length', 'TCP Windows', 'Time Delta', 'Pkt Rate', 'TTL', 'Port Diff'],
+            datasets: [{
+                label: 'Anomaly Packet',
+                data: [0, 0, 0, 0, 0, 0],
+                backgroundColor: 'rgba(239, 68, 68, 0.4)',
+                borderColor: '#ef4444',
+                pointBackgroundColor: '#ef4444',
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                r: {
+                    angleLines: { color: '#334155' },
+                    grid: { color: '#334155' },
+                    pointLabels: { color: '#94a3b8' },
+                    ticks: { display: false }
+                }
+            },
+            plugins: { legend: { display:false } }
         }
     });
 }
@@ -146,7 +178,28 @@ async function initIDS() {
             });
             const d = await res.json();
             if (!d.success) alert(d.message);
+            else {
+                isScadaUnlocked = true; // Auto-unlock if successfully stopped using password
+            }
             pollIDS();
+        } catch(e) { console.error(e); }
+    });
+
+    document.getElementById('btn-unlock-scada').addEventListener('click', async () => {
+        const pwd = document.getElementById('ids-password').value;
+        try {
+            const res = await fetch(`${API_BASE}/verify_password`, { 
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({password: pwd}) 
+            });
+            const d = await res.json();
+            if (d.success) {
+                isScadaUnlocked = true;
+                pollIDS(); // immediately updates UI
+            } else {
+                alert("Invalid passcode.");
+            }
         } catch(e) { console.error(e); }
     });
 
@@ -180,6 +233,7 @@ async function pollIDS() {
             stText.innerText = 'Running';
             stText.className = 'status-online';
             isIdsRunning = true;
+            isScadaUnlocked = false; // Lock out immediately
             
             // Hide scada tabs
             document.querySelectorAll('.scada-feature').forEach(el => el.style.display = 'none');
@@ -197,8 +251,13 @@ async function pollIDS() {
             stText.className = 'status-offline';
             isIdsRunning = false;
             
-            // Show scada tabs
-            document.querySelectorAll('.scada-feature').forEach(el => el.style.display = '');
+            if (isScadaUnlocked) {
+                // Show scada tabs
+                document.querySelectorAll('.scada-feature').forEach(el => el.style.display = '');
+            } else {
+                // Keep them hidden if not unlocked
+                document.querySelectorAll('.scada-feature').forEach(el => el.style.display = 'none');
+            }
         }
 
         // Logs
@@ -225,7 +284,7 @@ async function pollIDS() {
 
 // SCADA Master Polling
 async function pollScadaMaster() {
-    if (isIdsRunning) return; 
+    if (isIdsRunning || !isScadaUnlocked) return; 
     
     try {
         const res = await fetch(`${SCADA_API_BASE}/status`);
@@ -302,6 +361,23 @@ function renderDashboard(rtus) {
             }
         }
 
+        let controlsHtml = '';
+        if (key === 'FEEDER') {
+            controlsHtml = `
+                <div style="margin-top: 10px; display:flex; gap:10px;">
+                    <button class="ids-btn start" style="flex:1; padding:5px;" onclick="sendCommand('FEEDER', 'CLOSE')">CLOSE</button>
+                    <button class="ids-btn stop" style="flex:1; padding:5px; background-color:#7f1d1d;" onclick="sendCommand('FEEDER', 'OPEN')">TRIP</button>
+                </div>
+            `;
+        } else if (key.startsWith('HOME')) {
+            controlsHtml = `
+                <div style="margin-top: 10px; display:flex; gap:10px;">
+                    <button class="ids-btn start" style="flex:1; padding:5px;" onclick="sendCommand('${key}', 'ON')">ON</button>
+                    <button class="ids-btn stop" style="flex:1; padding:5px; background-color:#7f1d1d;" onclick="sendCommand('${key}', 'OFF')">OFF</button>
+                </div>
+            `;
+        }
+
         div.innerHTML = `
             <div style="display:flex; justify-content:space-between; margin-bottom:10px; border-bottom:1px solid #334155; padding-bottom:5px;">
                 <strong style="color:#e2e8f0">${key}</strong>
@@ -310,9 +386,21 @@ function renderDashboard(rtus) {
                       color:${statusText === 'ONLINE' ? '#bbf7d0' : '#fecaca'};">${statusText}</span>
             </div>
             <div>${metricsHtml}</div>
+            ${controlsHtml}
         `;
         container.appendChild(div);
     });
+}
+
+async function sendCommand(target, action) {
+    if (!isScadaUnlocked) return;
+    try {
+        await fetch(`${SCADA_API_BASE}/control`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ target, action })
+        });
+    } catch(e) { console.error(e); }
 }
 
 function updateLiveChart(fullData) {
@@ -348,4 +436,49 @@ async function addRTU() {
     const json = await res.json();
     alert(json.message || "Done");
     document.getElementById('add-rtu-form').reset();
+}
+
+function initAttackVector() {
+    document.getElementById('btn-analyse-vector').addEventListener('click', async () => {
+        try {
+            const res = await fetch(`${API_BASE}/anomaly_report`);
+            if (!res.ok) {
+                alert("No anomaly report available yet.");
+                return;
+            }
+            const report = await res.json();
+            
+            // Navigate to view
+            document.querySelectorAll('.view-section').forEach(s => s.classList.remove('active'));
+            document.getElementById('attack-vector-view').classList.add('active');
+            document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+
+            // Populate text
+            document.getElementById('vector-classification').innerText = report.classification || "Unknown Attack";
+            document.getElementById('vector-score').innerText = (report.anomaly_score || 0).toFixed(4);
+            document.getElementById('vector-metrics').innerHTML = `
+                Timestamp:    <span style="color:#fbbf24">${report.timestamp}</span><br>
+                Source IP:    <span style="color:#fbbf24">${report.src_ip}:${report.src_port || 'N/A'}</span><br>
+                Dest IP:      <span style="color:#fbbf24">${report.dst_ip}:${report.dst_port || 'N/A'}</span><br>
+                Packet Len:   <span style="color:#fbbf24">${report.length} bytes</span><br>
+                TCP Length:   <span style="color:#fbbf24">${report.tcp_len || 0} bytes</span><br>
+                Time To Live: <span style="color:#fbbf24">${report.ttl || 0} jumps</span><br>
+                Packet Rate:  <span style="color:#fbbf24">${(report.packet_rate || 0).toFixed(1)} pkt/s</span><br>
+            `;
+
+            // Max scale for radar (heuristic normalization)
+            const d = [
+                Math.min((report.length || 0)/1500, 1), 
+                Math.min((report.tcp_len || 0)/100, 1), 
+                1, // We don't log time delta, just setting a visual baseline
+                Math.min((report.packet_rate || 0)/500, 1), 
+                (report.ttl || 64) > 128 ? 1 : 0.5,
+                ((report.src_port || 0) !== (report.dst_port || 0)) ? 1 : 0
+            ];
+            
+            vectorRadarChart.data.datasets[0].data = d;
+            vectorRadarChart.update();
+
+        } catch(e) { console.error("Attack Vector Fetch Error:", e); }
+    });
 }

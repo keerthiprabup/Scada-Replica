@@ -147,5 +147,24 @@ def ids_logs():
             
     return jsonify({"logs": logs, "scores": scores})
 
+@app.route("/api/verify_password", methods=["POST"])
+def verify_password():
+    from flask import request
+    if request.json.get("password") == "userxyz":
+        return jsonify({"success": True})
+    return jsonify({"success": False, "message": "Invalid password"}), 401
+
+@app.route("/api/anomaly_report", methods=["GET"])
+def anomaly_report():
+    import json
+    report_file = os.path.join(IDS_DIR, "anomaly_report.json")
+    if os.path.exists(report_file):
+        try:
+            with open(report_file, "r") as f:
+                return jsonify(json.load(f))
+        except:
+            return jsonify({"error": "Failed to read report"}), 500
+    return jsonify({"error": "No report found"}), 404
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5050)

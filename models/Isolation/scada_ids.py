@@ -90,13 +90,61 @@ def extract_features(packet, prev_time):
         return None, prev_time
 
 # -------------------- REPORT & TRIGGER --------------------
-def handle_anomaly(packet, score):
+def classify_attack(features, packet):
+    # features: [pkt_len, src_port, dst_port, tcp_len, ttl, window, time_delta, pkt_rate, encode_ip, encode_ip, port_diff]
+    pkt_len = features[0]
+    dst_port = features[2]
+    tcp_len = features[3]
+    ttl = features[4]
+    window = features[5]
+    pkt_rate = features[7]
+
+    reasons = []
+    
+    # 1. High Rate / DoS
+    if pkt_rate > 500:
+        reasons.append("DoS / High-Rate Traffic Flooding")
+    
+    # 2. Large Payload Array
+    if pkt_len > 1500:
+        reasons.append("Large Payload / Buffer Overflow Attempt")
+        
+    # 3. Unauthorized Ports
+    standard_ports = [5000, 5002, 5003, 5004, 80, 443]
+    if dst_port not in standard_ports and dst_port > 0:
+        reasons.append(f"Unauthorized Port Access ({dst_port})")
+        
+    # 4. Modbus RTU Command Injection (Usually short commands, large tcp_len implies corruption/injection)
+    if dst_port in [5002, 5003, 5004] and tcp_len > 100:
+        reasons.append("Malicious RTU Command Injection")
+        
+    # 5. Routing Anomalies 
+    if ttl < 30 or ttl > 128:
+        reasons.append("Suspicious TTL / Possible IP Spoofing")
+        
+    # 6. Window State Exhaustion
+    if window == 0 and dst_port in standard_ports:
+        reasons.append("TCP Window Exhaustion Attack")
+
+    if not reasons:
+        reasons.append("Generic Traffic Anomaly")
+        
+    return " | ".join(reasons)
+
+def handle_anomaly(packet, score, features):
     try:
         report = {
             "timestamp": str(datetime.now()),
             "src_ip": getattr(packet.ip, "src", "N/A"),
             "dst_ip": getattr(packet.ip, "dst", "N/A"),
+            "src_port": features[1],
+            "dst_port": features[2],
+            "length": features[0],
+            "tcp_len": features[3],
+            "ttl": features[4],
+            "packet_rate": features[7],
             "anomaly_score": float(score),
+            "classification": classify_attack(features, packet)
         }
 
         with open(REPORT_FILE, "w") as f:
@@ -164,7 +212,7 @@ def start_ids():
 
             # 🚨 ANOMALY DETECTED
             if pred[0] == -1:
-                handle_anomaly(packet, score)
+                handle_anomaly(packet, score, features)
                 break  # STOP EXECUTION
 
         except Exception as e:
