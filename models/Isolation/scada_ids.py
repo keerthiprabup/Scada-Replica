@@ -107,16 +107,16 @@ def pre_filter_hybrid(packet, src_in_wl, dst_in_wl):
 
     if dst_in_wl and not src_in_wl:
         # External IP hitting our SCADA server
-        if dst_port in standard_ports:
+        if dst_port in standard_ports and tcp_len>0:
             violations.append(f"Unauthorized Inbound Access to SCADA Port ({dst_port})")
-        if dst_port in [5002, 5003, 5004] and tcp_len > 100:
+        if dst_port in [5002, 5003, 5004] and tcp_len > 0:
             violations.append("Malicious RTU Command Injection")
             
     elif src_in_wl and not dst_in_wl:
         # Our SCADA server talking to an External IP
-        if src_port in standard_ports:
+        if src_port in standard_ports and tcp_len>0:
             violations.append(f"Unauthorized Outbound Data from SCADA Port ({src_port})")
-        if src_port in [5002, 5003, 5004] and tcp_len > 100:
+        if src_port in [5002, 5003, 5004] and tcp_len > 0:
             violations.append("Malicious RTU Command Injection (Data Exfiltration)")
 
     return violations
@@ -140,9 +140,9 @@ def classify_attack(features, packet):
     standard_ports = [5000, 5002, 5003, 5004, 80, 443]
     # mask_port maps unknown upper ports to 99999
     if dst_port not in standard_ports and dst_port > 0:
-        reasons.append(f"Unauthorized Port Access ({dst_port})")
+        reasons.append(f"traffic on unusual port ({dst_port})")
         
-    if dst_port in [5002, 5003, 5004] and tcp_len > 100:
+    if dst_port in [5002, 5003, 5004] and tcp_len > 0:
         reasons.append("Malicious RTU Command Injection")
         
     if ttl < 30 or ttl > 128:
@@ -150,6 +150,9 @@ def classify_attack(features, packet):
         
     if window == 0 and dst_port in standard_ports:
         reasons.append("TCP Window Exhaustion Attack")
+
+    if not reasons:
+        reasons.append("Generic Traffic Anomaly")
 
     return reasons
 
