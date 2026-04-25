@@ -56,11 +56,6 @@ def safe_float(value, default=0.0):
     except:
         return default
 
-SCADA_PORTS = {80, 443, 502, 5000, 5002, 5003, 5004}
-def mask_port(p):
-    if p in SCADA_PORTS: return p
-    return 99999 if p > 1024 else p
-
 # -------------------- FEATURE EXTRACTION --------------------
 def extract_features(packet, prev_time):
     try:
@@ -79,14 +74,15 @@ def extract_features(packet, prev_time):
 
         if prev_time is None:
             time_delta = 0
+            pkt_rate = 0
         else:
             time_delta = timestamp - prev_time
+            pkt_rate = 1 / (time_delta + 1e-6)
 
-        pkt_rate = 1 / (time_delta + 1e-6)
         port_diff = src_port - dst_port
 
         features = [
-            pkt_len, mask_port(src_port), mask_port(dst_port), tcp_len, ttl, window,
+            pkt_len, src_port, dst_port, tcp_len, ttl, window,
             time_delta, pkt_rate, port_diff
         ]
 
