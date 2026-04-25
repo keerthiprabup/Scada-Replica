@@ -97,6 +97,30 @@ def extract_features(packet, prev_time):
         return None, prev_time
 
 # -------------------- REPORT & TRIGGER --------------------
+def pre_filter_hybrid(packet, src_in_wl, dst_in_wl):
+    src_port = safe_int(getattr(packet.tcp, 'srcport', 0))
+    dst_port = safe_int(getattr(packet.tcp, 'dstport', 0))
+    tcp_len = safe_int(getattr(packet.tcp, 'len', 0))
+    
+    standard_ports = [5000, 5002, 5003, 5004, 80, 443]
+    violations = []
+
+    if dst_in_wl and not src_in_wl:
+        # External IP hitting our SCADA server
+        if dst_port in standard_ports:
+            violations.append(f"Unauthorized Inbound Access to SCADA Port ({dst_port})")
+        if dst_port in [5002, 5003, 5004] and tcp_len > 100:
+            violations.append("Malicious RTU Command Injection")
+            
+    elif src_in_wl and not dst_in_wl:
+        # Our SCADA server talking to an External IP
+        if src_port in standard_ports:
+            violations.append(f"Unauthorized Outbound Data from SCADA Port ({src_port})")
+        if src_port in [5002, 5003, 5004] and tcp_len > 100:
+            violations.append("Malicious RTU Command Injection (Data Exfiltration)")
+
+    return violations
+
 def classify_attack(features, packet):
     # features: [pkt_len, src_port, dst_port, tcp_len, ttl, window, time_delta, pkt_rate, port_diff]
     pkt_len = features[0]
@@ -211,14 +235,17 @@ def start_ids():
             src_ip = getattr(packet.ip, "src", "N/A")
             dst_ip = getattr(packet.ip, "dst", "N/A")
 
+            src_in_wl = src_ip in whitelist
+            dst_in_wl = dst_ip in whitelist
+
             # Dual-Layer Default Routing
-            if src_ip not in whitelist and dst_ip not in whitelist:
+            if not src_in_wl and not dst_in_wl:
                 # Discard external meaningless noise not targeting topological nodes
                 continue
             
-            if (src_ip not in whitelist and dst_ip in whitelist) or (dst_ip not in whitelist and src_ip in whitelist):
+            if (not src_in_wl and dst_in_wl) or (not dst_in_wl and src_in_wl):
                 # Unseen user hitting topology. Strictly enforce rule-based pre-filter heuristic first
-                heuristic_violations = classify_attack(features, packet)
+                heuristic_violations = pre_filter_hybrid(packet, src_in_wl, dst_in_wl)
                 if len(heuristic_violations) > 0:
                     handle_anomaly(packet, -1.0, features, custom_reason=heuristic_violations)
                     break
