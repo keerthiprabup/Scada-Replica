@@ -17,6 +17,7 @@ args = parser.parse_args()
 INTERFACE = args.interface
 MODEL_PATH = "isolation_forest_model.joblib"
 SCALER_PATH = "scaler.joblib"
+WHITELIST_PATH = "whitelist_ips.json"
 REPORT_FILE = "anomaly_report.json"
 HISTORY_FILE = "anomaly_history.json"
 LIVE_SCORES_FILE = "live_scores.json"
@@ -34,10 +35,13 @@ print("[+] Loading model and scaler...")
 try:
     model = joblib.load(MODEL_PATH)
     scaler = joblib.load(SCALER_PATH)
+    with open(WHITELIST_PATH, "r") as f:
+        whitelist = json.load(f)
 except Exception as e:
-    print(f"Warning: Could not load model/scaler (run training script first). {e}")
+    print(f"Warning: Could not load model/scaler/whitelist. {e}")
     model = None
     scaler = None
+    whitelist = []
 
 # -------------------- HELPERS --------------------
 def safe_int(value, default=0):
@@ -52,8 +56,10 @@ def safe_float(value, default=0.0):
     except:
         return default
 
-def encode_ip(ip):
-    return hash(ip) % 10000
+SCADA_PORTS = {80, 443, 502, 5000, 5002, 5003, 5004}
+def mask_port(p):
+    if p in SCADA_PORTS: return p
+    return 99999 if p > 1024 else p
 
 # -------------------- FEATURE EXTRACTION --------------------
 def extract_features(packet, prev_time):
@@ -80,8 +86,8 @@ def extract_features(packet, prev_time):
         port_diff = src_port - dst_port
 
         features = [
-            pkt_len, src_port, dst_port, tcp_len, ttl, window,
-            time_delta, pkt_rate, encode_ip(src_ip), encode_ip(dst_ip), port_diff
+            pkt_len, mask_port(src_port), mask_port(dst_port), tcp_len, ttl, window,
+            time_delta, pkt_rate, port_diff
         ]
 
         return features, timestamp
@@ -92,7 +98,7 @@ def extract_features(packet, prev_time):
 
 # -------------------- REPORT & TRIGGER --------------------
 def classify_attack(features, packet):
-    # features: [pkt_len, src_port, dst_port, tcp_len, ttl, window, time_delta, pkt_rate, encode_ip, encode_ip, port_diff]
+    # features: [pkt_len, src_port, dst_port, tcp_len, ttl, window, time_delta, pkt_rate, port_diff]
     pkt_len = features[0]
     dst_port = features[2]
     tcp_len = features[3]
@@ -102,37 +108,28 @@ def classify_attack(features, packet):
 
     reasons = []
     
-    # 1. High Rate / DoS
     if pkt_rate > 500:
         reasons.append("DoS / High-Rate Traffic Flooding")
-    
-    # 2. Large Payload Array
     if pkt_len > 1500:
         reasons.append("Large Payload / Buffer Overflow Attempt")
         
-    # 3. Unauthorized Ports
     standard_ports = [5000, 5002, 5003, 5004, 80, 443]
+    # mask_port maps unknown upper ports to 99999
     if dst_port not in standard_ports and dst_port > 0:
         reasons.append(f"Unauthorized Port Access ({dst_port})")
         
-    # 4. Modbus RTU Command Injection (Usually short commands, large tcp_len implies corruption/injection)
     if dst_port in [5002, 5003, 5004] and tcp_len > 100:
         reasons.append("Malicious RTU Command Injection")
         
-    # 5. Routing Anomalies 
     if ttl < 30 or ttl > 128:
         reasons.append("Suspicious TTL / Possible IP Spoofing")
         
-    # 6. Window State Exhaustion
     if window == 0 and dst_port in standard_ports:
         reasons.append("TCP Window Exhaustion Attack")
 
-    if not reasons:
-        reasons.append("Generic Traffic Anomaly")
-        
-    return " | ".join(reasons)
+    return reasons
 
-def handle_anomaly(packet, score, features):
+def handle_anomaly(packet, score, features, custom_reason=None):
     try:
         report = {
             "timestamp": str(datetime.now()),
@@ -145,7 +142,7 @@ def handle_anomaly(packet, score, features):
             "ttl": features[4],
             "packet_rate": features[7],
             "anomaly_score": float(score),
-            "classification": classify_attack(features, packet)
+            "classification": " | ".join(custom_reason) if custom_reason else (" | ".join(classify_attack(features, packet)) or "Generic Traffic Anomaly")
         }
 
         with open(REPORT_FILE, "w") as f:
@@ -211,6 +208,22 @@ def start_ids():
             continue
 
         try:
+            src_ip = getattr(packet.ip, "src", "N/A")
+            dst_ip = getattr(packet.ip, "dst", "N/A")
+
+            # Dual-Layer Default Routing
+            if src_ip not in whitelist and dst_ip not in whitelist:
+                # Discard external meaningless noise not targeting topological nodes
+                continue
+            
+            if (src_ip not in whitelist and dst_ip in whitelist) or (dst_ip not in whitelist and src_ip in whitelist):
+                # Unseen user hitting topology. Strictly enforce rule-based pre-filter heuristic first
+                heuristic_violations = classify_attack(features, packet)
+                if len(heuristic_violations) > 0:
+                    handle_anomaly(packet, -1.0, features, custom_reason=heuristic_violations)
+                    break
+            
+            # Sub-dimensional ML profile execution (Both Authorized OR Passed Firewall Heuristics)
             X = scaler.transform([features])
             pred = model.predict(X)
             score = float(model.decision_function(X)[0])
@@ -227,8 +240,9 @@ def start_ids():
             except Exception as e:
                 pass # Don't let file write errors stop the IDS
 
-            # 🚨 ANOMALY DETECTED
+            # 🚨 ANOMALY DETECTED BY ML 
             if pred[0] == -1:
+                # If heuristic didn't catch it, fallback to default analysis strings
                 handle_anomaly(packet, score, features)
                 break  # STOP EXECUTION
 
