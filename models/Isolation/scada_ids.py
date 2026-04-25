@@ -97,9 +97,10 @@ def extract_features(packet, prev_time):
         return None, prev_time
 
 # -------------------- REPORT & TRIGGER --------------------
-def classify_attack(features, packet):
+def classify_attack(features, packet, src_in_wl, dst_in_wl):
     # features: [pkt_len, src_port, dst_port, tcp_len, ttl, window, time_delta, pkt_rate, port_diff]
     pkt_len = features[0]
+    src_port = features[1]
     dst_port = features[2]
     tcp_len = features[3]
     ttl = features[4]
@@ -114,9 +115,16 @@ def classify_attack(features, packet):
         reasons.append("Large Payload / Buffer Overflow Attempt")
         
     standard_ports = [5000, 5002, 5003, 5004, 80, 443]
-    # mask_port maps unknown upper ports to 99999
-    if dst_port not in standard_ports and dst_port > 0:
-        reasons.append(f"Unauthorized Port Access ({dst_port})")
+    
+    # Check port legitimacy dynamically based on traffic direction
+    if dst_in_wl and not src_in_wl:
+        # Incoming request from unknown external to a trusted SCADA node
+        if dst_port not in standard_ports and dst_port > 0:
+            reasons.append(f"Unauthorized Inbound Target Port ({getattr(packet.tcp, 'dstport', dst_port)})")
+    elif src_in_wl and not dst_in_wl:
+        # Outgoing response from a trusted SCADA node to an unknown external
+        if src_port not in standard_ports and src_port > 0:
+            reasons.append(f"Unauthorized Outbound Server Port ({getattr(packet.tcp, 'srcport', src_port)})")
         
     if dst_port in [5002, 5003, 5004] and tcp_len > 100:
         reasons.append("Malicious RTU Command Injection")
@@ -124,7 +132,7 @@ def classify_attack(features, packet):
     if ttl < 30 or ttl > 128:
         reasons.append("Suspicious TTL / Possible IP Spoofing")
         
-    if window == 0 and dst_port in standard_ports:
+    if window == 0 and (dst_port in standard_ports or src_port in standard_ports):
         reasons.append("TCP Window Exhaustion Attack")
 
     return reasons
@@ -142,7 +150,7 @@ def handle_anomaly(packet, score, features, custom_reason=None):
             "ttl": features[4],
             "packet_rate": features[7],
             "anomaly_score": float(score),
-            "classification": " | ".join(custom_reason) if custom_reason else (" | ".join(classify_attack(features, packet)) or "Generic Traffic Anomaly")
+            "classification": " | ".join(custom_reason) if custom_reason else (" | ".join(classify_attack(features, packet, True, True)) or "Generic Traffic Anomaly")
         }
 
         with open(REPORT_FILE, "w") as f:
@@ -211,17 +219,19 @@ def start_ids():
             src_ip = getattr(packet.ip, "src", "N/A")
             dst_ip = getattr(packet.ip, "dst", "N/A")
 
+            src_in_wl = src_ip in whitelist
+            dst_in_wl = dst_ip in whitelist
+
             # Dual-Layer Default Routing
-            if src_ip not in whitelist and dst_ip not in whitelist:
+            if not src_in_wl and not dst_in_wl:
                 # Discard external meaningless noise not targeting topological nodes
                 continue
             
-            if (src_ip not in whitelist and dst_ip in whitelist) or (dst_ip not in whitelist and src_ip in whitelist):
-                # Unseen user hitting topology. Strictly enforce rule-based pre-filter heuristic first
-                heuristic_violations = classify_attack(features, packet)
-                if len(heuristic_violations) > 0:
-                    handle_anomaly(packet, -1.0, features, custom_reason=heuristic_violations)
-                    break
+            # Evaluate ALL relevant topology traffic against the strict heuristic firewall first
+            heuristic_violations = classify_attack(features, packet, src_in_wl, dst_in_wl)
+            if len(heuristic_violations) > 0:
+                handle_anomaly(packet, -1.0, features, custom_reason=heuristic_violations)
+                break
             
             # Sub-dimensional ML profile execution (Both Authorized OR Passed Firewall Heuristics)
             X = scaler.transform([features])
