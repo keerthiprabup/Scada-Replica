@@ -264,7 +264,10 @@ def start_ids():
                 # Unseen user hitting topology. Strictly enforce rule-based pre-filter heuristic first
                 heuristic_violations = pre_filter_hybrid(packet, src_in_wl, dst_in_wl)
                 if len(heuristic_violations) > 0:
-                    handle_anomaly(packet, -1.0, features, custom_reason=heuristic_violations)
+                    X = scaler.transform([features])
+                    score = float(model.decision_function(X)[0])
+                    adj_score = max(score - 1.0, -1.0)
+                    handle_anomaly(packet, adj_score, features, custom_reason=heuristic_violations)
                     break
             
             # Sub-dimensional ML profile execution (Both Authorized OR Passed Firewall Heuristics)
