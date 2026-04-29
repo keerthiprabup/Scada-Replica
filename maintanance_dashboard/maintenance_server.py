@@ -12,8 +12,23 @@ except ImportError:
 
 try:
     import telebot
+    from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 except ImportError:
     telebot = None
+
+try:
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+except ImportError:
+    plt = None
+
+try:
+    from pymodbus.client import ModbusTcpClient
+except ImportError:
+    ModbusTcpClient = None
+
+import io
 
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 ADMIN_CHAT_ID = os.environ.get("ADMIN_CHAT_ID", "")
@@ -223,29 +238,181 @@ def breach_history():
             return jsonify([])
     return jsonify([])
 
+DEFAULT_RTUS = {
+    "SUBSTATION": {"ip": os.getenv("SUBSTATION_IP", "127.0.0.1"), "port": 5002, "unit": 1},
+    "FEEDER":     {"ip": os.getenv("FEEDER_IP", "127.0.0.1"), "port": 5003, "unit": 2},
+    "HOME":       {"ip": "127.0.0.1", "port": 5004, "unit": 3}
+}
+
+def get_scada_status():
+    if not ModbusTcpClient: return "pymodbus not installed.", None
+    status_text = ""
+    plot_data = {"names": [], "powers": []}
+    
+    for name, cfg in DEFAULT_RTUS.items():
+        try:
+            client = ModbusTcpClient(cfg["ip"], port=int(cfg["port"]))
+            if client.connect():
+                hr = client.read_holding_registers(0, count=10, slave=cfg["unit"])
+                co = client.read_coils(0, count=10, slave=cfg["unit"])
+                
+                if not hr.isError() and not co.isError():
+                    if name == "SUBSTATION":
+                        exported_mw = hr.registers[0]/10.0
+                        status_text += f"🏭 *{name}*\n└ Exported: {exported_mw} MW\n"
+                        plot_data["names"].append("SUB")
+                        plot_data["powers"].append(exported_mw * 1000)
+                    elif name == "FEEDER":
+                        power_kw = hr.registers[4]/10.0
+                        status_text += f"⚡ *{name}*\n└ {hr.registers[1]}V | {power_kw} kW | Breaker: {'ON' if co.bits[0] else 'OFF'}\n"
+                        plot_data["names"].append("FEED")
+                        plot_data["powers"].append(power_kw)
+                    elif name.startswith("HOME"):
+                        load_w = hr.registers[0]
+                        status_text += f"🏠 *{name}*\n└ {hr.registers[1]}V | {load_w} W | Supply: {'ON' if co.bits[0] else 'OFF'}\n"
+                        plot_data["names"].append("HOME")
+                        plot_data["powers"].append(load_w / 1000.0)
+                else:
+                    status_text += f"❌ *{name}*: Modbus Error\n"
+            else:
+                status_text += f"🔴 *{name}*: Offline\n"
+            client.close()
+        except Exception as e:
+            status_text += f"⚠️ *{name}*: Error\n"
+    
+    return status_text, plot_data
+
 bot = None
 if telebot and TELEGRAM_BOT_TOKEN:
     bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN)
 
+    def main_menu():
+        markup = InlineKeyboardMarkup(row_width=2)
+        markup.add(
+            InlineKeyboardButton("📊 SCADA Status", callback_data="status"),
+            InlineKeyboardButton("📈 Value Graph", callback_data="graph"),
+            InlineKeyboardButton("📜 Last 10 Reports", callback_data="reports"),
+            InlineKeyboardButton("ℹ️ System State", callback_data="system_state"),
+            InlineKeyboardButton("▶️ Start IDS", callback_data="start_ids_menu"),
+            InlineKeyboardButton("⏹️ Stop IDS", callback_data="stop_ids"),
+            InlineKeyboardButton("🔒 Isolate", callback_data="isolate"),
+            InlineKeyboardButton("🔓 Unisolate", callback_data="unisolate")
+        )
+        return markup
+
+    @bot.message_handler(commands=['start', 'menu'])
+    def send_welcome(message):
+        if str(message.chat.id) != ADMIN_CHAT_ID: return
+        bot.send_message(message.chat.id, "🤖 *SCADA Command Center*\nSelect an action:", reply_markup=main_menu(), parse_mode="Markdown")
+
+    @bot.callback_query_handler(func=lambda call: True)
+    def callback_query(call):
+        if str(call.message.chat.id) != ADMIN_CHAT_ID: return
+        try:
+            if call.data == "system_state":
+                running = IDS_PROCESS is not None and IDS_PROCESS.poll() is None
+                msg = f"🛡️ *IDS Status*: {'Running ✅' if running else 'Stopped ❌'}\n"
+                msg += f"🔌 *Isolation Mode*: {'MANUAL / ISOLATED 🔴' if ISOLATION_MODE else 'NORMAL 🟢'}"
+                bot.edit_message_text(msg, call.message.chat.id, call.message.message_id, reply_markup=main_menu(), parse_mode="Markdown")
+                
+            elif call.data == "status":
+                bot.answer_callback_query(call.id, "Polling RTUs...")
+                text, _ = get_scada_status()
+                bot.edit_message_text("📡 *Live SCADA Status*\n\n" + text, call.message.chat.id, call.message.message_id, reply_markup=main_menu(), parse_mode="Markdown")
+                
+            elif call.data == "graph":
+                if not plt:
+                    bot.answer_callback_query(call.id, "matplotlib not installed.")
+                    return
+                bot.answer_callback_query(call.id, "Generating graph...")
+                _, plot_data = get_scada_status()
+                if not plot_data or not plot_data["names"]:
+                    bot.send_message(call.message.chat.id, "No RTU data available.")
+                    return
+                
+                plt.figure(figsize=(6, 4))
+                plt.bar(plot_data["names"], plot_data["powers"], color='skyblue')
+                plt.title("Current Power Usage (kW)")
+                plt.ylabel("Power (kW)")
+                buf = io.BytesIO()
+                plt.savefig(buf, format='png')
+                buf.seek(0)
+                plt.close()
+                
+                bot.send_photo(call.message.chat.id, buf, caption="📈 Real-time Power Values")
+                
+            elif call.data == "reports":
+                report_file = os.path.join(IDS_DIR, "anomaly_history.json")
+                if os.path.exists(report_file):
+                    with open(report_file, "r") as f:
+                        data = json.load(f)
+                        last_10 = data[-10:]
+                        msg = "📜 *Last 10 Anomalies*\n\n"
+                        for i, r in enumerate(reversed(last_10)):
+                            cls = r.get('classification', 'N/A')
+                            time_str = r.get('timestamp', '')[:19]
+                            msg += f"*{i+1}.* `{time_str}` - {cls}\n"
+                        bot.edit_message_text(msg, call.message.chat.id, call.message.message_id, reply_markup=main_menu(), parse_mode="Markdown")
+                else:
+                    bot.answer_callback_query(call.id, "No reports found.")
+                    
+            elif call.data == "start_ids_menu":
+                interfaces = ["br-xyb", "eth0", "lo"]
+                if psutil:
+                    import socket
+                    stats = psutil.net_if_addrs()
+                    interfaces = list(stats.keys())
+                markup = InlineKeyboardMarkup()
+                for intf in interfaces[:5]:
+                    markup.add(InlineKeyboardButton(f"Start on {intf}", callback_data=f"start_ids_{intf}"))
+                markup.add(InlineKeyboardButton("🔙 Back", callback_data="system_state"))
+                bot.edit_message_text("Select Interface to sniff:", call.message.chat.id, call.message.message_id, reply_markup=markup)
+                
+            elif call.data.startswith("start_ids_"):
+                interface = call.data.replace("start_ids_", "")
+                global IDS_PROCESS
+                if IDS_PROCESS is not None and IDS_PROCESS.poll() is None:
+                    bot.answer_callback_query(call.id, "IDS already running!")
+                    return
+                script_path = os.path.join(IDS_DIR, "scada_ids.py")
+                IDS_PROCESS = subprocess.Popen(["python", script_path, "--interface", interface], cwd=IDS_DIR)
+                bot.edit_message_text(f"✅ IDS Started on `{interface}`", call.message.chat.id, call.message.message_id, reply_markup=main_menu(), parse_mode="Markdown")
+                
+            elif call.data == "stop_ids":
+                if IDS_PROCESS is not None and IDS_PROCESS.poll() is None:
+                    IDS_PROCESS.terminate()
+                    IDS_PROCESS.wait()
+                    bot.edit_message_text("⏹️ IDS Stopped.", call.message.chat.id, call.message.message_id, reply_markup=main_menu())
+                else:
+                    bot.answer_callback_query(call.id, "IDS not running.")
+                    
+            elif call.data == "isolate":
+                global ISOLATION_MODE
+                if not ISOLATION_MODE:
+                    threading.Thread(target=execute_isolation).start()
+                    bot.edit_message_text("🚨 *System Isolated!*", call.message.chat.id, call.message.message_id, reply_markup=main_menu(), parse_mode="Markdown")
+                else:
+                    bot.answer_callback_query(call.id, "Already isolated.")
+                    
+            elif call.data == "unisolate":
+                execute_unisolation()
+                bot.edit_message_text("✅ *System Unisolated!*", call.message.chat.id, call.message.message_id, reply_markup=main_menu(), parse_mode="Markdown")
+                
+        except Exception as e:
+            bot.answer_callback_query(call.id, f"Error: {str(e)}")
+
     @bot.message_handler(commands=['isolate'])
     def handle_isolate_command(message):
-        if str(message.chat.id) != ADMIN_CHAT_ID:
-            bot.reply_to(message, "Unauthorized.")
-            return
-        global ISOLATION_MODE
+        if str(message.chat.id) != ADMIN_CHAT_ID: return
         if not ISOLATION_MODE:
             threading.Thread(target=execute_isolation).start()
-            bot.reply_to(message, "🚨 System Isolate Command Executed. System is now in MANUAL MODE.")
-        else:
-            bot.reply_to(message, "System is already isolated.")
+            bot.reply_to(message, "🚨 System Isolated.")
 
     @bot.message_handler(commands=['unisolate'])
     def handle_unisolate_command(message):
-        if str(message.chat.id) != ADMIN_CHAT_ID:
-            bot.reply_to(message, "Unauthorized.")
-            return
+        if str(message.chat.id) != ADMIN_CHAT_ID: return
         execute_unisolation()
-        bot.reply_to(message, "✅ System Unisolate Command Executed. System is now RECOVERED.")
+        bot.reply_to(message, "✅ System Unisolated.")
 
 @app.route("/api/telegram_report", methods=["POST"])
 def telegram_report():
