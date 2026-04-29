@@ -98,7 +98,7 @@ services:
     build: ./attack_dashboard
     container_name: attacker_dashboard
     ports:
-      - "5000:5000"
+      - "5001:5001"
     volumes:
       - ./attack_scripts:/app/attack_scripts
       - /var/run/docker.sock:/var/run/docker.sock

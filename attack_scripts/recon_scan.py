@@ -28,8 +28,6 @@ def scan_modbus(ip, ports):
             client = ModbusTcpClient(ip, port=port)
             try:
                 if client.connect():
-            try:
-                if client.connect():
                     print(f"[+] Successfully connected to Modbus server at {ip}:{port}")
                     # Attempt to read registers to confirm. 
                     # Pymodbus 3.11+ uses 'device_id' and keyword-only args for count/device_id
