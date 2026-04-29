@@ -94,17 +94,17 @@ services:
     profiles:
       - tools
 
-  attacker_dashboard:
-    build: ./attack_dashboard
-    container_name: attacker_dashboard
-    ports:
-      - "5001:5001"
-    volumes:
-      - ./attack_scripts:/app/attack_scripts
-      - /var/run/docker.sock:/var/run/docker.sock
-    networks:
-      - default
-      - attacker-net
+  # attacker_dashboard:
+  #   build: ./attack_dashboard
+  #   container_name: attacker_dashboard
+  #   ports:
+  #     - "5001:5001"
+  #   volumes:
+  #     - ./attack_scripts:/app/attack_scripts
+  #     - /var/run/docker.sock:/var/run/docker.sock
+  #   networks:
+  #     - default
+  #     - attacker-net
 
 networks:
   attacker-net:
