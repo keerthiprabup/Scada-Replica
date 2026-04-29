@@ -195,16 +195,30 @@ def handle_anomaly(packet, score, features, custom_reason=None):
         print("\n[🚨] ANOMALY DETECTED!")
         print(json.dumps(report, indent=4))
         
-        # Trigger Physical Isolation
-        print(f"[>] Sending isolation command to Maintenance Dashboard: {MAINTENANCE_SERVER_URL}")
+        # Trigger Auto-Isolation or Unisolation based on Classification
+        payload = {"password": "userxyz"}
+        if "Generic Traffic Anomaly" in report["classification"]:
+            target_url = "http://localhost:5050/api/unisolate"
+            print("[>] Generic Anomaly detected. Sending UNISOLATE command to Maintenance Dashboard...")
+        else:
+            target_url = "http://localhost:5050/api/isolate"
+            print("[>] Severe Anomaly detected. Sending ISOLATE command to Maintenance Dashboard...")
+            
         try:
-            resp = requests.post(MAINTENANCE_SERVER_URL, timeout=5)
+            resp = requests.post(target_url, json=payload, timeout=5)
             if resp.status_code == 200:
-                print("[+] Isolation successful. System is in manual mode.")
+                print(f"[+] Command successful: {resp.json().get('message', 'OK')}")
             else:
                 print(f"[-] Maintenance Server returned {resp.status_code}.")
         except Exception as e:
             print(f"[-] Failed to reach Maintenance Server: {e}")
+            
+        # Send Telegram Report via Maintenance Dashboard
+        print("[>] Forwarding anomaly report to Telegram via Maintenance Dashboard...")
+        try:
+            requests.post("http://localhost:5050/api/telegram_report", json=report, timeout=5)
+        except Exception as e:
+            print(f"[-] Failed to forward report to Telegram: {e}")
 
     except Exception as e:
         logging.error(f"Report generation failed: {e}")

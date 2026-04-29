@@ -10,6 +10,14 @@ try:
 except ImportError:
     psutil = None
 
+try:
+    import telebot
+except ImportError:
+    telebot = None
+
+TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+ADMIN_CHAT_ID = os.environ.get("ADMIN_CHAT_ID", "")
+
 app = Flask(__name__)
 CORS(app)
 
@@ -59,12 +67,7 @@ def isolate_system():
     return jsonify({"success": True, "isolated": True, "message": "Electrical system is under manual mode"})
 
 
-@app.route("/api/unisolate", methods=["POST"])
-def unisolate_system():
-    from flask import request
-    if not request.json or request.json.get("password") != "userxyz":
-        return jsonify({"success": False, "message": "Invalid password"}), 401
-    
+def execute_unisolation():
     global ISOLATION_MODE
     ISOLATION_MODE = False
     print("[!] Recovering system from isolation...")
@@ -79,7 +82,14 @@ def unisolate_system():
             print("[+] Direct docker start executed.")
         except Exception as ex:
              print(f"Failed direct docker start. Please manually run 'docker start substation feeder home home2 home3 scada controller': {ex}")
+
+@app.route("/api/unisolate", methods=["POST"])
+def unisolate_system():
+    from flask import request
+    if not request.json or request.json.get("password") != "userxyz":
+        return jsonify({"success": False, "message": "Invalid password"}), 401
     
+    execute_unisolation()
     return jsonify({"success": True, "isolated": False, "message": "System Recovered"})
 
 @app.route("/api/interfaces")
@@ -213,5 +223,67 @@ def breach_history():
             return jsonify([])
     return jsonify([])
 
+bot = None
+if telebot and TELEGRAM_BOT_TOKEN:
+    bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN)
+
+    @bot.message_handler(commands=['isolate'])
+    def handle_isolate_command(message):
+        if str(message.chat.id) != ADMIN_CHAT_ID:
+            bot.reply_to(message, "Unauthorized.")
+            return
+        global ISOLATION_MODE
+        if not ISOLATION_MODE:
+            threading.Thread(target=execute_isolation).start()
+            bot.reply_to(message, "🚨 System Isolate Command Executed. System is now in MANUAL MODE.")
+        else:
+            bot.reply_to(message, "System is already isolated.")
+
+    @bot.message_handler(commands=['unisolate'])
+    def handle_unisolate_command(message):
+        if str(message.chat.id) != ADMIN_CHAT_ID:
+            bot.reply_to(message, "Unauthorized.")
+            return
+        execute_unisolation()
+        bot.reply_to(message, "✅ System Unisolate Command Executed. System is now RECOVERED.")
+
+@app.route("/api/telegram_report", methods=["POST"])
+def telegram_report():
+    from flask import request
+    report = request.json
+    if not report:
+        return jsonify({"success": False}), 400
+        
+    if bot and ADMIN_CHAT_ID:
+        try:
+            msg = "🚨 *SCADA Anomaly Report* 🚨\n\n"
+            msg += f"Classification: `{report.get('classification', 'N/A')}`\n"
+            msg += f"Score: `{report.get('anomaly_score', 'N/A')}`\n"
+            msg += f"Target: `{report.get('dst_ip', 'N/A')}:{report.get('dst_port', 'N/A')}`\n"
+            msg += f"Source: `{report.get('src_ip', 'N/A')}:{report.get('src_port', 'N/A')}`\n"
+            msg += f"Time: `{report.get('timestamp', 'N/A')}`\n"
+            
+            if "Generic Traffic Anomaly" in report.get('classification', ''):
+                msg += "\nℹ️ *Action*: General Anomaly -> System UNISOLATED/Kept Normal"
+            else:
+                msg += "\n⚠️ *Action*: Severe Anomaly -> System ISOLATED"
+                
+            bot.send_message(ADMIN_CHAT_ID, msg, parse_mode="Markdown")
+            return jsonify({"success": True})
+        except Exception as e:
+            print(f"Failed to send telegram report: {e}")
+            return jsonify({"success": False, "error": str(e)})
+    return jsonify({"success": False, "message": "Bot not configured"})
+
+def start_bot():
+    if bot:
+        print("[+] Telegram Bot Started")
+        try:
+            bot.polling(none_stop=True)
+        except Exception as e:
+            print(f"[-] Telegram Bot Polling Error: {e}")
+
 if __name__ == "__main__":
+    t = threading.Thread(target=start_bot, daemon=True)
+    t.start()
     app.run(host="0.0.0.0", port=5050)
