@@ -14,7 +14,7 @@ CORS(app)
 # ---------------- CONFIGURATION ----------------
 ISOLATION_MODE = False
 IDS_PROCESS = None
-IDS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "models", "Isolation")
+IDS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ids")
 
 RTU_CONFIG_FILE = "demo_rtu_config.json"
 LOG_FILE = "demo_scada_events.json"
@@ -140,7 +140,7 @@ def execute_isolation():
     global ISOLATION_MODE
     ISOLATION_MODE = True
     print("[!] Isolation triggered! Stopping SCADA Containers...")
-    script_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "maintanance_dashboard", "stop_scada.sh")
+    script_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "stop_scada.sh")
     try:
         subprocess.Popen(["sh", script_path])
     except Exception as e:
@@ -191,12 +191,33 @@ def unisolate_system():
     global ISOLATION_MODE
     ISOLATION_MODE = False
     print("[!] Recovering system...")
-    script_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "maintanance_dashboard", "start_scada.sh")
+    script_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "start_scada.sh")
     try:
         subprocess.Popen(["sh", script_path])
     except Exception:
         subprocess.Popen(["docker", "start", "substation", "feeder", "home", "home2", "home3", "scada", "controller"])
     return jsonify({"success": True})
+
+@app.route("/api/interfaces")
+def get_interfaces_api():
+    try:
+        import psutil, socket
+        result = []
+        stats = psutil.net_if_addrs()
+        for interface_name, addrs in stats.items():
+            ip = None
+            for addr in addrs:
+                if addr.family == socket.AF_INET:
+                    ip = addr.address
+                    break
+            result.append({"name": interface_name, "ip": ip})
+        return jsonify(result)
+    except ImportError:
+        try:
+            output = subprocess.check_output(["powershell", "-NoProfile", "-Command", "(Get-NetAdapter).Name"], text=True)
+            return jsonify([{"name": line.strip(), "ip": None} for line in output.split('\n') if line.strip()])
+        except Exception:
+            return jsonify([{"name": "br-xyb", "ip": None}])
 
 @app.route("/api/containers")
 def get_containers():
@@ -213,6 +234,7 @@ def get_containers():
 def set_ids_mode():
     data = request.json
     mode = data.get("mode") # "ON" or "OFF"
+    interface = data.get("interface", "br-xyb")
     
     global IDS_PROCESS
     
@@ -224,11 +246,11 @@ def set_ids_mode():
         if IDS_PROCESS is None or IDS_PROCESS.poll() is not None:
             script_path = os.path.join(IDS_DIR, "scada_ids.py")
             try:
-                IDS_PROCESS = subprocess.Popen(["python", script_path, "--interface", "br-xyb"], cwd=IDS_DIR)
+                IDS_PROCESS = subprocess.Popen(["python", script_path, "--interface", interface], cwd=IDS_DIR)
             except Exception as e:
                 pass
                 
-    return jsonify({"success": True, "mode": mode})
+    return jsonify({"success": True, "mode": mode, "interface": interface})
 
 @app.route("/api/ids/logs")
 def ids_logs():

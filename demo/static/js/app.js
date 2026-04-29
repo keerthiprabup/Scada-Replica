@@ -1,6 +1,6 @@
 // State Machine & Global Variables
 let currentTab = 'scada-view';
-let userManualIdsState = true; // True = User wants IDS ON. False = User manually killed it.
+let userManualIdsState = false; // True = User wants IDS ON. False = User manually killed it.
 let isIsolated = false;
 
 let trendChart;
@@ -11,7 +11,25 @@ document.addEventListener('DOMContentLoaded', () => {
     initNavigation();
     initChart();
     startPolling();
+    fetchInterfaces();
 });
+
+async function fetchInterfaces() {
+    try {
+        const res = await fetch(`${API_BASE}/interfaces`);
+        const interfaces = await res.json();
+        const select = document.getElementById('interface-select');
+        select.innerHTML = '';
+        interfaces.forEach(iface => {
+            const opt = document.createElement('option');
+            opt.value = iface.name;
+            opt.textContent = iface.name + (iface.ip ? ` (${iface.ip})` : '');
+            select.appendChild(opt);
+        });
+    } catch (e) {
+        console.error("Failed to fetch interfaces", e);
+    }
+}
 
 // ---------------- NAVIGATION & SPA LOGIC ----------------
 function initNavigation() {
@@ -49,25 +67,47 @@ function handleTabSwitch() {
         // RESUME IDS (Only if the user didn't manually turn it off)
         if (userManualIdsState) {
             setIdsState('ON');
+        } else {
+            setIdsState('OFF');
         }
+    }
+}
+
+async function toggleManualIds() {
+    userManualIdsState = !userManualIdsState;
+    if (userManualIdsState) {
+        await setIdsState('ON');
+    } else {
+        await setIdsState('OFF');
     }
 }
 
 async function setIdsState(mode) {
     try {
+        const iface = document.getElementById('interface-select').value;
         await fetch(`${API_BASE}/ids/mode`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ mode: mode })
+            body: JSON.stringify({ mode: mode, interface: iface })
         });
         
         const badge = document.getElementById('ids-status-badge');
+        const btn = document.getElementById('manual-ids-toggle');
+        
         if (mode === 'ON') {
             badge.className = 'badge badge-green';
             badge.innerText = 'IDS: ACTIVE';
+            if (btn) {
+                btn.className = 'btn btn-danger';
+                btn.innerHTML = '<i class="fa-solid fa-stop"></i> STOP IDS';
+            }
         } else {
             badge.className = 'badge badge-red';
             badge.innerText = 'IDS: PAUSED';
+            if (btn) {
+                btn.className = 'btn btn-success';
+                btn.innerHTML = '<i class="fa-solid fa-play"></i> START IDS';
+            }
         }
     } catch (e) {
         console.error("Failed to change IDS state", e);

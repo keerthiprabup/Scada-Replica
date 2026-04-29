@@ -14,7 +14,7 @@
     <!-- Top Navigation Bar -->
     <nav class="top-nav">
         <div class="nav-brand">
-            <i class="fa-solid fa-bolt text-blue"></i> HYBRID_GRID <span class="version-tag">v2.4</span>
+            <i class="fa-solid fa-bolt text-blue"></i> SCADA IDS <span class="version-tag">v2.4</span>
         </div>
         <div class="nav-tabs">
             <button class="nav-tab active" data-target="scada-view">
@@ -55,8 +55,14 @@
         <section id="ids-view" class="view-section hidden">
             <div class="dashboard-header ids-header">
                 <h2>Intrusion Detection System</h2>
-                <div class="ids-controls">
-                    <span id="ids-status-badge" class="badge badge-green">IDS: ACTIVE</span>
+                <div class="ids-controls flex gap-2 align-center" style="align-items: center;">
+                    <select id="interface-select" class="auth-input" style="margin-top: 0; padding: 0.4rem; width: auto; font-size: 0.9rem;">
+                        <option value="br-xyb">br-xyb</option>
+                    </select>
+                    <button id="manual-ids-toggle" class="btn btn-success" onclick="toggleManualIds()">
+                        <i class="fa-solid fa-play"></i> START IDS
+                    </button>
+                    <span id="ids-status-badge" class="badge badge-red">IDS: PAUSED</span>
                 </div>
             </div>
             

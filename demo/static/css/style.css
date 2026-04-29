@@ -98,7 +98,16 @@ body {
 .ids-header { display: flex; justify-content: space-between; align-items: center; }
 
 /* Badges */
-.badge { padding: 0.3rem 0.8rem; border-radius: 20px; font-size: 0.85rem; font-weight: bold; }
+.badge { 
+    padding: 0.3rem 0.8rem; 
+    border-radius: 8px; 
+    font-size: 0.85rem; 
+    font-weight: bold; 
+    display: inline-block; 
+    white-space: normal; 
+    line-height: 1.4; 
+    text-align: center;
+}
 .badge-green { background: rgba(16, 185, 129, 0.2); color: var(--accent-green); border: 1px solid var(--accent-green); }
 .badge-red { background: rgba(239, 68, 68, 0.2); color: var(--accent-red); border: 1px solid var(--accent-red); }
 
