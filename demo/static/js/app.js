@@ -229,7 +229,9 @@ async function sendCmd(target, type, addr, val) {
 // ---------------- CYBER COMMAND RENDERING ----------------
 async function updateDockerTable() {
     try {
-        const res = await fetch(`${API_BASE}/containers`);
+        const ifaceSelect = document.getElementById('interface-select');
+        const network = ifaceSelect ? ifaceSelect.value : "br-xyb";
+        const res = await fetch(`${API_BASE}/containers?network=${network}`);
         const containers = await res.json();
         const tbody = document.querySelector('#docker-table tbody');
         tbody.innerHTML = '';

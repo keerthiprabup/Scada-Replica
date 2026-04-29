@@ -221,8 +221,9 @@ def get_interfaces_api():
 
 @app.route("/api/containers")
 def get_containers():
+    network_name = request.args.get("network", "br-xyb")
     try:
-        output = subprocess.check_output(["docker", "network", "inspect", "br-xyb"], text=True)
+        output = subprocess.check_output(["docker", "network", "inspect", network_name], text=True)
         net_info = json.loads(output)
         containers = net_info[0].get("Containers", {})
         result = [{"name": d.get("Name"), "ip": d.get("IPv4Address", "").split("/")[0]} for d in containers.values()]
@@ -281,4 +282,4 @@ def ids_logs():
 if __name__ == "__main__":
     t = threading.Thread(target=poll_rtus, daemon=True)
     t.start()
-    app.run(host="0.0.0.0", port=5000)
+    app.run(host="0.0.0.0", port=5051)
