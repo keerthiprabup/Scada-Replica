@@ -307,6 +307,9 @@ if telebot and TELEGRAM_BOT_TOKEN:
 
     @bot.callback_query_handler(func=lambda call: True)
     def callback_query(call):
+        global IDS_PROCESS
+        global ISOLATION_MODE
+        
         if str(call.message.chat.id) != ADMIN_CHAT_ID: return
         try:
             if call.data == "system_state":
@@ -370,7 +373,6 @@ if telebot and TELEGRAM_BOT_TOKEN:
                 
             elif call.data.startswith("start_ids_"):
                 interface = call.data.replace("start_ids_", "")
-                global IDS_PROCESS
                 if IDS_PROCESS is not None and IDS_PROCESS.poll() is None:
                     bot.answer_callback_query(call.id, "IDS already running!")
                     return
@@ -387,7 +389,6 @@ if telebot and TELEGRAM_BOT_TOKEN:
                     bot.answer_callback_query(call.id, "IDS not running.")
                     
             elif call.data == "isolate":
-                global ISOLATION_MODE
                 if not ISOLATION_MODE:
                     threading.Thread(target=execute_isolation).start()
                     bot.edit_message_text("🚨 *System Isolated!*", call.message.chat.id, call.message.message_id, reply_markup=main_menu(), parse_mode="Markdown")
