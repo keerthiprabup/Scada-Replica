@@ -103,10 +103,10 @@ python attack_scripts/command_injection.py --target feeder --port 5003 --unit 2 
 
 **How it works**: The script spawns numerous concurrent threads that aggressively open Modbus TCP connections and send junk "Read Holding Registers" requests in an infinite loop.
 
-### 🛠️ Sample Command: Flood the Substation RTU
-To launch a 100-thread flood against the Substation:
+### 🛠️ Sample Command: Flood the Master RTU
+To launch a flood against the MasterRTU:
 ```bash
-python attack_scripts/dos_flood.py --target substation --port 5002 --threads 100
+python attack_scripts/dos_flood.py --target ScadaMaster --port 5000 --size 2000 --rate 10000
 ```
 *(Press `Ctrl+C` to halt the attack)*
 
