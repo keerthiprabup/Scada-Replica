@@ -117,16 +117,8 @@ python attack_scripts/dos_flood.py --target ScadaMaster --port 5000 --size 2000 
 ---
 
 ## 4. Replay Attack (State Lockout) (Needs packet analysation[time consuming])
-**Objective**: Prevent legitimate SCADA operators from changing the state of a device by aggressively replaying (overwriting) its current state.
+**Objective**: Prevent legitimate SCADA operators from changing the state of a device by aggressively replaying (overwriting) its shared packets.
 
-**How it works**: The script reads the current state of a specific coil. It then enters an infinite, aggressive loop, writing that exact same state back to the RTU. Because Modbus TCP lacks sequence numbers, the RTU accepts all packets.
-
-### 🛠️ Sample Command: Lock Home Power Supply
-Assume the Home supply is currently **ON**. We want to lock it in this state so the SCADA Master cannot turn it off. We target Home 1 (Unit 3) and replay the state of Coil `0` (`Supply_Enable`):
-```bash
-python attack_scripts/replay_attack.py --target home --port 5004 --unit 3 --address 0
-```
-*(Press `Ctrl+C` to halt the attack)*
 
 ### 👁️ Expected Outcome
 1. **SCADA Impact**: While the script is running, if the operator uses the Dashboard to click "Turn OFF" for the Home RTU, the HMI might temporarily show it as off, but the replay script will immediately overwrite it back to ON within milliseconds. The operator loses control of the actuator.
