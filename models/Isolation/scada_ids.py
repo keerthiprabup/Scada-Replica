@@ -5,7 +5,7 @@ import json
 import logging
 import time
 import requests
-from datetime import datetime
+from datetime import datetime   
 
 import argparse
 
@@ -102,7 +102,7 @@ def pre_filter_hybrid(packet, src_in_wl, dst_in_wl):
     dst_port = safe_int(getattr(packet.tcp, 'dstport', 0))
     tcp_len = safe_int(getattr(packet.tcp, 'len', 0))
     
-    standard_ports = [5000, 5002, 5003, 5004, 80, 443]
+    standard_ports = [5002, 5003, 5004, 80, 443]
     violations = []
 
     if dst_in_wl and not src_in_wl:
