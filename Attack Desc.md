@@ -1,4 +1,4 @@
-# SCADA Attack Demonstration Guide
+# SCADA Attack Demo
 
 This document outlines the sample commands and expected behaviors for the four primary attack vectors: **Command Injection**, **Denial of Service (DoS)**, **Replay Attack**, and **False Data Injection (FDI)**. It also serves as a reference for the Modbus network layout.
 
@@ -116,7 +116,7 @@ python attack_scripts/dos_flood.py --target ScadaMaster --port 5000 --size 2000 
 
 ---
 
-## 4. Replay Attack (State Lockout)
+## 4. Replay Attack (State Lockout) (Needs packet analysation[time consuming])
 **Objective**: Prevent legitimate SCADA operators from changing the state of a device by aggressively replaying (overwriting) its current state.
 
 **How it works**: The script reads the current state of a specific coil. It then enters an infinite, aggressive loop, writing that exact same state back to the RTU. Because Modbus TCP lacks sequence numbers, the RTU accepts all packets.
